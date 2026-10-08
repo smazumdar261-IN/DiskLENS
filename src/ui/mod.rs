@@ -19,3 +19,4 @@ pub mod status_bar;
 pub mod storage_view;
 pub mod tree_view;
 pub mod treemap_view;
+pub mod responsive;

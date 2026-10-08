@@ -1,6 +1,7 @@
 use crate::models::{format_size, AnalysisCache, ExtensionSummary, FileCategory};
 use crate::theme::AppTheme;
 use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use egui_extras::{Column, TableBuilder};
 
 pub struct CategoriesViewState {
     pub search_ext: String,
@@ -182,127 +183,99 @@ pub fn render_categories_view(
 
                 ui.add_space(6.0);
 
-                // 3. Dense Extension Table Header
-                let table_w = total_avail;
-                egui::Frame::none()
-                    .fill(t.bg_elevated)
-                    .rounding(4.0_f32)
-                    .stroke(egui::Stroke::new(1.0_f32, t.border))
-                    .inner_margin(Margin::symmetric(10.0, 5.0))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.add_sized([160.0, 18.0], egui::Label::new(RichText::new("Extension / Format").strong().color(t.text_muted)));
-                            ui.add_sized([140.0, 18.0], egui::Label::new(RichText::new("Category").strong().color(t.text_muted)));
-                            let remaining = (table_w - 320.0).max(360.0);
-                            let col_w = (remaining / 4.0).floor();
-                            ui.add_sized([col_w, 18.0], egui::Label::new(RichText::new("File Count").strong().color(t.text_muted)));
-                            ui.add_sized([col_w, 18.0], egui::Label::new(RichText::new("Logical Size").strong().color(t.text_muted)));
-                            ui.add_sized([col_w, 18.0], egui::Label::new(RichText::new("Allocated Disk").strong().color(t.text_muted)));
-                            ui.add_sized([col_w, 18.0], egui::Label::new(RichText::new("Space Share").strong().color(t.text_muted)));
-                        });
-                    });
-
-                ui.add_space(2.0);
-
-                // 4. Virtualized Dense Table Rows (26-28px Height)
-                let row_height = 28.0_f32;
+                // 3. Dense Extension Table using TableBuilder
                 let total_rows = filtered_exts.len();
 
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show_rows(ui, row_height, total_rows, |ui, row_range| {
-                        for idx in row_range {
+                TableBuilder::new(ui)
+                    .striped(true)
+                    .resizable(true)
+                    .vscroll(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::initial(160.0).at_least(110.0).resizable(true))
+                    .column(Column::initial(140.0).at_least(100.0).resizable(true))
+                    .column(Column::initial(100.0).at_least(75.0).resizable(true))
+                    .column(Column::initial(110.0).at_least(80.0).resizable(true))
+                    .column(Column::initial(110.0).at_least(80.0).resizable(true))
+                    .column(Column::remainder().at_least(110.0))
+                    .header(24.0, |mut header| {
+                        header.col(|ui| {
+                            ui.label(RichText::new("Extension / Format").strong().color(t.text_muted));
+                        });
+                        header.col(|ui| {
+                            ui.label(RichText::new("Category").strong().color(t.text_muted));
+                        });
+                        header.col(|ui| {
+                            ui.label(RichText::new("File Count").strong().color(t.text_muted));
+                        });
+                        header.col(|ui| {
+                            ui.label(RichText::new("Logical Size").strong().color(t.text_muted));
+                        });
+                        header.col(|ui| {
+                            ui.label(RichText::new("Allocated Disk").strong().color(t.text_muted));
+                        });
+                        header.col(|ui| {
+                            ui.label(RichText::new("Space Share").strong().color(t.text_muted));
+                        });
+                    })
+                    .body(|mut body| {
+                        body.rows(28.0, total_rows, |mut row| {
+                            let idx = row.index();
                             if let Some(ext) = filtered_exts.get(idx) {
-                                let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(table_w, 26.0), Sense::hover());
-                                let is_hov = row_resp.hovered();
-
-                                let bg = if is_hov {
-                                    t.bg_elevated
-                                } else if idx % 2 == 0 {
-                                    t.bg_container
-                                } else {
-                                    Color32::TRANSPARENT
-                                };
-
-                                ui.painter().rect_filled(row_rect, 3.0_f32, bg);
-
                                 // Col 1: Extension name
-                                let ext_label = if ext.extension.is_empty() || ext.extension == "no extension" {
-                                    "(extensionless)".to_string()
-                                } else {
-                                    format!(".{}", ext.extension)
-                                };
-                                ui.painter().text(
-                                    egui::pos2(row_rect.min.x + 10.0, row_rect.center().y),
-                                    egui::Align2::LEFT_CENTER,
-                                    ext_label,
-                                    egui::FontId::monospace(11.5),
-                                    t.text,
-                                );
+                                row.col(|ui| {
+                                    let ext_label = if ext.extension.is_empty() || ext.extension == "no extension" {
+                                        "(extensionless)".to_string()
+                                    } else {
+                                        format!(".{}", ext.extension)
+                                    };
+                                    ui.label(RichText::new(ext_label).size(11.5).monospace().color(t.text));
+                                });
 
                                 // Col 2: Category Badge
-                                let cat_badge_rect = Rect::from_min_size(
-                                    egui::pos2(row_rect.min.x + 170.0, row_rect.center().y - 9.0),
-                                    Vec2::new(120.0, 18.0),
-                                );
-                                ui.painter().rect_filled(cat_badge_rect, 3.0_f32, ext.category.color().gamma_multiply(0.18));
-                                ui.painter().text(
-                                    cat_badge_rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    format!("{} {}", ext.category.icon(), ext.category.display_name()),
-                                    egui::FontId::proportional(10.5),
-                                    ext.category.color(),
-                                );
+                                row.col(|ui| {
+                                    let cat_badge = egui::Frame::none()
+                                        .fill(ext.category.color().gamma_multiply(0.18))
+                                        .rounding(3.0_f32)
+                                        .inner_margin(Margin::symmetric(6.0, 2.0));
+                                    cat_badge.show(ui, |ui| {
+                                        ui.label(
+                                            RichText::new(format!("{} {}", ext.category.icon(), ext.category.display_name()))
+                                                .size(10.5)
+                                                .color(ext.category.color()),
+                                        );
+                                    });
+                                });
 
-                                let remaining = (table_w - 320.0).max(360.0);
-                                let col_w = (remaining / 4.0).floor();
-                                let base_x = row_rect.min.x + 310.0;
+                                // Col 3: File Count
+                                row.col(|ui| {
+                                    ui.label(RichText::new(format!("{}", ext.count)).size(11.0).monospace().color(t.text));
+                                });
 
-                                // Col 3: File Count (Monospace)
-                                ui.painter().text(
-                                    egui::pos2(base_x + col_w - 10.0, row_rect.center().y),
-                                    egui::Align2::RIGHT_CENTER,
-                                    format!("{}", ext.count),
-                                    egui::FontId::monospace(11.5),
-                                    t.text,
-                                );
+                                // Col 4: Logical Size
+                                row.col(|ui| {
+                                    ui.label(RichText::new(format_size(ext.total_size)).size(11.0).monospace().color(t.text));
+                                });
 
-                                // Col 4: Apparent Size (Monospace)
-                                ui.painter().text(
-                                    egui::pos2(base_x + (col_w * 2.0) - 10.0, row_rect.center().y),
-                                    egui::Align2::RIGHT_CENTER,
-                                    format_size(ext.total_size),
-                                    egui::FontId::monospace(11.5),
-                                    t.text,
-                                );
+                                // Col 5: Allocated Disk
+                                row.col(|ui| {
+                                    ui.label(RichText::new(format_size(ext.total_allocated_size)).size(11.0).monospace().color(t.cyan));
+                                });
 
-                                // Col 5: Allocated Size (Monospace)
-                                ui.painter().text(
-                                    egui::pos2(base_x + (col_w * 3.0) - 10.0, row_rect.center().y),
-                                    egui::Align2::RIGHT_CENTER,
-                                    format_size(ext.total_allocated_size),
-                                    egui::FontId::monospace(11.5),
-                                    t.cyan,
-                                );
+                                // Col 6: Space Share
+                                row.col(|ui| {
+                                    ui.horizontal(|ui| {
+                                        let bar_w = 50.0_f32;
+                                        let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), Sense::hover());
+                                        ui.painter().rect_filled(bar_rect, 2.0_f32, t.bg_input);
+                                        let filled_w = (bar_w * (ext.percentage / 100.0)).clamp(1.0, bar_w);
+                                        let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
+                                        ui.painter().rect_filled(filled_rect, 2.0_f32, ext.category.color());
 
-                                // Col 6: Share % and Bar
-                                let bar_x = base_x + (col_w * 3.0) + 10.0;
-                                let bar_w = (col_w - 70.0).max(30.0);
-                                let mini_bar_rect = Rect::from_min_size(egui::pos2(bar_x, row_rect.center().y - 3.0), Vec2::new(bar_w, 6.0));
-                                ui.painter().rect_filled(mini_bar_rect, 2.0_f32, t.bg_input);
-                                let filled_w = (bar_w * (ext.percentage / 100.0)).clamp(1.0, bar_w);
-                                let filled_rect = Rect::from_min_size(mini_bar_rect.min, Vec2::new(filled_w, mini_bar_rect.height()));
-                                ui.painter().rect_filled(filled_rect, 2.0_f32, ext.category.color());
-
-                                ui.painter().text(
-                                    egui::pos2(base_x + (col_w * 4.0) - 10.0, row_rect.center().y),
-                                    egui::Align2::RIGHT_CENTER,
-                                    format!("{:.1}%", ext.percentage),
-                                    egui::FontId::monospace(11.0),
-                                    t.text_muted,
-                                );
+                                        ui.label(RichText::new(format!("{:.1}%", ext.percentage)).size(11.0).monospace().color(t.text_muted));
+                                    });
+                                });
                             }
-                        }
+                        });
                     });
 
                 ui.add_space(16.0);

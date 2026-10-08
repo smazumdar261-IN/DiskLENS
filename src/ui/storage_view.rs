@@ -161,30 +161,24 @@ pub fn render_storage_view(
                         for (short_name, target_path, color, icon) in chunk {
                             ui.allocate_ui_with_layout(egui::vec2(tile_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                 ui.set_max_width(tile_w);
-                                let (tile_rect, response) = ui.allocate_exact_size(Vec2::new(tile_w, 58.0), Sense::click());
-                                let is_hovered = response.hovered();
+                                let frame_resp = egui::Frame::none()
+                                    .fill(t.bg_container)
+                                    .rounding(6.0_f32)
+                                    .stroke(egui::Stroke::new(1.0_f32, t.border))
+                                    .inner_margin(Margin::symmetric(8.0, 6.0))
+                                    .show(ui, |ui| {
+                                        ui.set_width(ui.available_width());
+                                        ui.vertical_centered(|ui| {
+                                            ui.label(RichText::new(*icon).size(18.0).color(*color));
+                                            ui.add(egui::Label::new(RichText::new(*short_name).size(11.5).color(t.text)).truncate());
+                                        });
+                                    });
 
-                                let bg = if is_hovered { t.bg_elevated } else { t.bg_container };
-                                ui.painter().rect_filled(tile_rect, 6.0_f32, bg);
-                                ui.painter().rect_stroke(tile_rect, 6.0_f32, egui::Stroke::new(1.0_f32, if is_hovered { *color } else { t.border }));
-
-                                ui.painter().text(
-                                    egui::pos2(tile_rect.center().x, tile_rect.min.y + 18.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    *icon,
-                                    egui::FontId::proportional(18.0),
-                                    *color,
-                                );
-
-                                ui.painter().text(
-                                    egui::pos2(tile_rect.center().x, tile_rect.min.y + 40.0),
-                                    egui::Align2::CENTER_CENTER,
-                                    *short_name,
-                                    egui::FontId::proportional(11.5),
-                                    t.text,
-                                );
-
-                                if response.clicked() {
+                                let interact_resp = ui.interact(frame_resp.response.rect, ui.id().with(short_name), Sense::click());
+                                if interact_resp.hovered() {
+                                    ui.painter().rect_stroke(frame_resp.response.rect, 6.0_f32, egui::Stroke::new(1.0_f32, *color));
+                                }
+                                if interact_resp.clicked() {
                                     *path_input = target_path.clone();
                                     on_analyze(PathBuf::from(target_path));
                                 }
@@ -330,7 +324,7 @@ fn render_summary_metric_card(
     color: Color32,
     icon: &str,
     target_tab: Option<ActiveTab>,
-    card_w: f32,
+    _card_w: f32,
     active_tab: &mut ActiveTab,
     t: &crate::theme::ThemeTokens,
 ) {
@@ -340,8 +334,7 @@ fn render_summary_metric_card(
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
-            let inner_w = (card_w - 24.0).max(40.0);
-            ui.set_width(inner_w);
+            ui.set_width(ui.available_width());
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(title).size(10.0).monospace().color(t.text_muted));
@@ -372,7 +365,7 @@ fn render_summary_metric_card(
 fn render_storage_drive_card(
     ui: &mut Ui,
     disk: &sysinfo::Disk,
-    drive_card_w: f32,
+    _drive_card_w: f32,
     path_input: &mut String,
     on_analyze: &mut dyn FnMut(PathBuf),
     t: &crate::theme::ThemeTokens,
@@ -411,111 +404,78 @@ fn render_storage_drive_card(
         t.success
     };
 
-    let (card_rect, response) = ui.allocate_exact_size(
-        Vec2::new(drive_card_w, 134.0),
-        Sense::click(),
-    );
-    let is_hovered = response.hovered();
+    let frame_resp = egui::Frame::none()
+        .fill(t.bg_container)
+        .rounding(6.0_f32)
+        .stroke(egui::Stroke::new(1.0_f32, t.border))
+        .inner_margin(Margin::same(12.0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
 
-    let bg = if is_hovered { t.bg_elevated } else { t.bg_container };
-    ui.painter().rect_filled(card_rect, 6.0_f32, bg);
-    ui.painter().rect_stroke(card_rect, 6.0_f32, egui::Stroke::new(1.0_f32, if is_hovered { t.accent } else { t.border }));
+            // Header row: Icon + Title/Sub + Scan Button
+            ui.horizontal(|ui| {
+                let icon = if dev_name.contains("nvme") { "⚡" } else { "🖴" };
+                ui.label(RichText::new(icon).size(20.0).color(t.accent));
 
-    let content_rect = card_rect.shrink(12.0);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(&drive_title).size(13.0).strong().color(t.text));
+                    let sub_text = format!("{} • {} • mount: {}", dev_name, fs_type, mount_str);
+                    ui.add(egui::Label::new(RichText::new(sub_text).size(10.5).color(t.text_muted)).truncate());
+                });
 
-    // Header row: Icon, Title, Subtitle, Scan Button
-    let icon_pos = egui::pos2(content_rect.min.x + 12.0, content_rect.min.y + 16.0);
-    ui.painter().text(
-        icon_pos,
-        egui::Align2::CENTER_CENTER,
-        if dev_name.contains("nvme") { "⚡" } else { "🖴" },
-        egui::FontId::proportional(22.0),
-        t.accent,
-    );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add_sized(
+                        [68.0, 26.0],
+                        egui::Button::new(RichText::new("🔍 Scan").size(11.5).strong().color(Color32::WHITE))
+                            .fill(Color32::from_rgb(65, 72, 104)),
+                    ).clicked() {
+                        *path_input = mount_point.display().to_string();
+                        on_analyze(mount_point.clone());
+                    }
+                });
+            });
 
-    let text_x = content_rect.min.x + 30.0;
-    let btn_w = 68.0_f32;
-    let title_avail_w = (content_rect.width() - btn_w - 40.0).max(40.0);
-    let max_chars = (title_avail_w / 7.5) as usize;
+            ui.add_space(8.0);
 
-    ui.painter().text(
-        egui::pos2(text_x, content_rect.min.y + 4.0),
-        egui::Align2::LEFT_TOP,
-        crate::theme::truncate_middle(&drive_title, max_chars.clamp(8, 36)),
-        egui::FontId::proportional(13.5),
-        t.text,
-    );
+            // Usage numbers
+            ui.horizontal(|ui| {
+                let used_str = format!("{} Used", format_size(used_bytes));
+                ui.label(RichText::new(used_str).size(11.5).color(t.text));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let total_str = format!("{} Total", format_size(total_bytes));
+                    ui.label(RichText::new(total_str).size(11.0).color(t.text_muted));
+                });
+            });
 
-    let sub_text = format!("{} • {} • mount: {}", dev_name, fs_type, mount_str);
-    ui.painter().text(
-        egui::pos2(text_x, content_rect.min.y + 22.0),
-        egui::Align2::LEFT_TOP,
-        crate::theme::truncate_middle(&sub_text, max_chars + 6),
-        egui::FontId::proportional(10.5),
-        t.text_muted,
-    );
+            ui.add_space(4.0);
 
-    // Scan Button on Right
-    let btn_rect = Rect::from_min_size(
-        egui::pos2(content_rect.max.x - btn_w, content_rect.min.y + 6.0),
-        Vec2::new(btn_w, 26.0),
-    );
+            // Capacity bar
+            let avail_w = ui.available_width();
+            let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, 8.0), Sense::hover());
+            ui.painter().rect_filled(bar_rect, 4.0_f32, t.bg_input);
+            let filled_w = (bar_rect.width() * usage_ratio).max(4.0);
+            let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
+            ui.painter().rect_filled(filled_rect, 4.0_f32, bar_color);
 
-    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(btn_rect), |ui| {
-        if ui.add_sized([btn_w, 26.0], egui::Button::new(RichText::new("🔍 Scan").size(11.5).strong().color(Color32::WHITE)).fill(Color32::from_rgb(65, 72, 104))).clicked() {
-            *path_input = mount_point.display().to_string();
-            on_analyze(mount_point.clone());
-        }
-    });
+            ui.add_space(4.0);
 
-    // Usage numbers
-    let used_str = format!("{} Used", format_size(used_bytes));
-    let total_str = format!("{} Total", format_size(total_bytes));
-    ui.painter().text(
-        egui::pos2(content_rect.min.x, content_rect.min.y + 58.0),
-        egui::Align2::LEFT_TOP,
-        used_str,
-        egui::FontId::proportional(11.5),
-        t.text,
-    );
-    ui.painter().text(
-        egui::pos2(content_rect.max.x, content_rect.min.y + 58.0),
-        egui::Align2::RIGHT_TOP,
-        total_str,
-        egui::FontId::proportional(11.0),
-        t.text_muted,
-    );
+            // Footer % readout
+            ui.horizontal(|ui| {
+                let pct_str = format!("{:.1}% capacity used", usage_ratio * 100.0);
+                ui.label(RichText::new(pct_str).size(10.5).color(bar_color));
 
-    // Capacity bar
-    let bar_rect = Rect::from_min_size(
-        egui::pos2(content_rect.min.x, content_rect.min.y + 78.0),
-        Vec2::new(content_rect.width(), 8.0),
-    );
-    ui.painter().rect_filled(bar_rect, 4.0_f32, t.bg_input);
-    let filled_w = (bar_rect.width() * usage_ratio).max(4.0);
-    let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
-    ui.painter().rect_filled(filled_rect, 4.0_f32, bar_color);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let free_str = format!("{} Free ({:.0}%)", format_size(available_bytes), (1.0 - usage_ratio) * 100.0);
+                    ui.label(RichText::new(free_str).size(10.5).color(t.text_muted));
+                });
+            });
+        });
 
-    // Footer % readout
-    let pct_str = format!("{:.1}% capacity used", usage_ratio * 100.0);
-    ui.painter().text(
-        egui::pos2(content_rect.min.x, content_rect.min.y + 96.0),
-        egui::Align2::LEFT_TOP,
-        pct_str,
-        egui::FontId::proportional(10.5),
-        bar_color,
-    );
-
-    let free_str = format!("{} Free ({:.0}%)", format_size(available_bytes), (1.0 - usage_ratio) * 100.0);
-    ui.painter().text(
-        egui::pos2(content_rect.max.x, content_rect.min.y + 96.0),
-        egui::Align2::RIGHT_TOP,
-        free_str,
-        egui::FontId::proportional(10.5),
-        t.text_muted,
-    );
-
-    if response.clicked() {
+    let interact_resp = ui.interact(frame_resp.response.rect, ui.id().with(&mount_str), Sense::click());
+    if interact_resp.hovered() {
+        ui.painter().rect_stroke(frame_resp.response.rect, 6.0_f32, egui::Stroke::new(1.0_f32, t.accent));
+    }
+    if interact_resp.clicked() {
         *path_input = mount_point.display().to_string();
         on_analyze(mount_point);
     }

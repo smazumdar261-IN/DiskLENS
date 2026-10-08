@@ -2,6 +2,7 @@ use crate::app::ActiveTab;
 use crate::models::{format_size, AnalysisCache, FileCategory, FileNode, LargeFileInfo};
 use crate::theme::{truncate_middle, AppTheme, ThemeTokens};
 use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -443,65 +444,42 @@ fn render_bento_category_panel(
 
                 ui.add_space(8.0);
 
-                // Dense Category Rows (Standardized 26px height)
-                for cat in cat_summaries.iter().take(8) {
-                    if cat.total_size == 0 { continue; }
+                // Dense Category Rows using TableBuilder
+                let valid_cats: Vec<_> = cat_summaries.iter().filter(|c| c.total_size > 0).take(8).collect();
+                TableBuilder::new(ui)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::remainder().at_least(110.0).clip(true))
+                    .column(Column::initial(80.0).at_least(60.0))
+                    .column(Column::initial(115.0).at_least(85.0))
+                    .body(|mut body| {
+                        body.rows(26.0, valid_cats.len(), |mut row| {
+                            let idx = row.index();
+                            let cat = valid_cats[idx];
 
-                    let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(inner_w, 26.0), Sense::click());
-                    let is_hov = row_resp.hovered();
+                            row.col(|ui| {
+                                let label_text = format!("{} {}", cat.category.icon(), cat.category.display_name());
+                                if ui.selectable_label(false, RichText::new(label_text).size(11.5).color(t.text)).clicked() {
+                                    *action = Some(OverviewAction::FilterCategory(cat.category));
+                                }
+                            });
 
-                    if is_hov {
-                        ui.painter().rect_filled(row_rect, 3.0_f32, t.bg_container);
-                    }
+                            row.col(|ui| {
+                                ui.label(RichText::new(format!("{} files", cat.count)).size(10.5).monospace().color(t.text_muted));
+                            });
 
-                    // Dot + Icon
-                    let dot_pos = egui::pos2(row_rect.min.x + 6.0, row_rect.center().y);
-                    ui.painter().circle_filled(dot_pos, 4.0_f32, cat.category.color());
-
-                    let text_x = row_rect.min.x + 18.0;
-                    let stats_x = row_rect.max.x - 8.0;
-                    let count_x = row_rect.max.x - 140.0;
-                    let has_count = count_x > text_x + 120.0;
-                    let name_max_w = if has_count { count_x - text_x - 10.0 } else { stats_x - text_x - 80.0 };
-                    let cat_title = format!("{} {}", cat.category.icon(), cat.category.display_name());
-                    let max_chars = (name_max_w / 7.5).max(6.0) as usize;
-                    let display_cat = truncate_middle(&cat_title, max_chars.clamp(6, 28));
-
-                    ui.painter().text(
-                        egui::pos2(text_x, row_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        display_cat,
-                        egui::FontId::proportional(11.5),
-                        t.text,
-                    );
-
-                    // Monospace Numbers
-                    let stats_x = row_rect.max.x - 8.0;
-                    let stats_str = format!("{}  ({:.1}%)", format_size(cat.total_size), cat.percentage);
-                    ui.painter().text(
-                        egui::pos2(stats_x, row_rect.center().y),
-                        egui::Align2::RIGHT_CENTER,
-                        stats_str,
-                        egui::FontId::monospace(11.0),
-                        cat.category.color(),
-                    );
-
-                    // File count
-                    let count_x = row_rect.max.x - 140.0;
-                    if count_x > text_x + 120.0 {
-                        ui.painter().text(
-                            egui::pos2(count_x, row_rect.center().y),
-                            egui::Align2::RIGHT_CENTER,
-                            format!("{} files", cat.count),
-                            egui::FontId::monospace(10.5),
-                            t.text_muted,
-                        );
-                    }
-
-                    if row_resp.clicked() {
-                        *action = Some(OverviewAction::FilterCategory(cat.category));
-                    }
-                }
+                            row.col(|ui| {
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(
+                                        RichText::new(format!("{} ({:.1}%)", format_size(cat.total_size), cat.percentage))
+                                            .size(11.0)
+                                            .monospace()
+                                            .strong()
+                                            .color(cat.category.color()),
+                                    );
+                                });
+                            });
+                        });
+                    });
             });
         });
 }
@@ -540,79 +518,64 @@ fn render_bento_hogs_panel(
                 if top_hogs.is_empty() {
                     ui.label(RichText::new("No large files recorded.").italics().color(t.text_muted));
                 } else {
-                    for (idx, hog) in top_hogs.iter().enumerate() {
-                        let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(inner_w, 26.0), Sense::click());
-                        let is_hov = row_resp.hovered();
+                    TableBuilder::new(ui)
+                        .striped(true)
+                        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                        .column(Column::initial(26.0))
+                        .column(Column::remainder().at_least(110.0).clip(true))
+                        .column(Column::initial(75.0).at_least(60.0))
+                        .column(Column::initial(115.0).at_least(85.0))
+                        .body(|mut body| {
+                            body.rows(26.0, top_hogs.len(), |mut row| {
+                                let idx = row.index();
+                                let hog = top_hogs[idx];
 
-                        let bg = if is_hov { t.bg_container } else if idx % 2 == 0 { t.bg_surface.gamma_multiply(0.4) } else { Color32::TRANSPARENT };
-                        ui.painter().rect_filled(row_rect, 3.0_f32, bg);
+                                // Col 1: Rank
+                                row.col(|ui| {
+                                    let rank_col = if idx < 3 { t.accent } else { t.text_muted };
+                                    ui.label(RichText::new(format!("{:02}", idx + 1)).size(10.5).monospace().color(rank_col));
+                                });
 
-                        // Rank
-                        let rank_col = if idx < 3 { t.accent } else { t.text_muted };
-                        ui.painter().text(
-                            egui::pos2(row_rect.min.x + 8.0, row_rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            format!("{:02}", idx + 1),
-                            egui::FontId::monospace(10.5),
-                            rank_col,
-                        );
-
-                        // Strict overlap prevention: name width calculated dynamically from size/toolbar boundary
-                        let name_avail_w = if is_hov {
-                            (row_rect.max.x - 128.0 - (row_rect.min.x + 32.0)).max(30.0)
-                        } else {
-                            (row_rect.max.x - 85.0 - (row_rect.min.x + 32.0)).max(30.0)
-                        };
-                        let max_chars = (name_avail_w / 7.5) as usize;
-                        let display_name = truncate_middle(&hog.name, max_chars.clamp(6, 42));
-                        ui.painter().text(
-                            egui::pos2(row_rect.min.x + 32.0, row_rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            format!("{} {}", hog.category.icon(), display_name),
-                            egui::FontId::proportional(11.5),
-                            t.text,
-                        );
-
-                        // Monospace Size
-                        let size_str = hog.formatted_size();
-                        let size_x = if is_hov { row_rect.max.x - 120.0 } else { row_rect.max.x - 8.0 };
-                        ui.painter().text(
-                            egui::pos2(size_x, row_rect.center().y),
-                            egui::Align2::RIGHT_CENTER,
-                            size_str,
-                            egui::FontId::monospace(11.0),
-                            t.text,
-                        );
-
-                        // Hover-activated action toolbar (prevents column bloat)
-                        if is_hov {
-                            let act_rect = Rect::from_min_size(
-                                egui::pos2(row_rect.max.x - 116.0, row_rect.center().y - 11.0),
-                                Vec2::new(112.0, 22.0),
-                            );
-                            ui.allocate_new_ui(egui::UiBuilder::new().max_rect(act_rect), |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 2.0;
-                                    if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
-                                        *action = Some(OverviewAction::OpenInFileManager(hog.path.clone()));
-                                    }
-                                    if ui.small_button("📟").on_hover_text("Open terminal here").clicked() {
-                                        *action = Some(OverviewAction::OpenTerminal(hog.path.clone()));
-                                    }
-                                    if ui.small_button("📋").on_hover_text("Copy path").clicked() {
-                                        *action = Some(OverviewAction::CopyPath(hog.path.clone()));
-                                    }
-                                    if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
-                                        *action = Some(OverviewAction::MoveToTrash(hog.path.clone(), hog.size));
+                                // Col 2: Name
+                                row.col(|ui| {
+                                    let display_name = truncate_middle(&hog.name, 32);
+                                    let full_p = hog.path.display().to_string();
+                                    let label_resp = ui.add(
+                                        egui::Label::new(RichText::new(format!("{} {}", hog.category.icon(), display_name)).size(11.5).color(t.text))
+                                            .truncate(),
+                                    ).on_hover_text(full_p);
+                                    if label_resp.double_clicked() {
+                                        *action = Some(OverviewAction::OpenFile(hog.path.clone()));
                                     }
                                 });
-                            });
-                        }
 
-                        if row_resp.double_clicked() {
-                            *action = Some(OverviewAction::OpenFile(hog.path.clone()));
-                        }
-                    }
+                                // Col 3: Size
+                                row.col(|ui| {
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.label(RichText::new(hog.formatted_size()).size(11.0).monospace().color(t.text));
+                                    });
+                                });
+
+                                // Col 4: Action buttons
+                                row.col(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 2.0;
+                                        if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
+                                            *action = Some(OverviewAction::OpenInFileManager(hog.path.clone()));
+                                        }
+                                        if ui.small_button("📟").on_hover_text("Open terminal here").clicked() {
+                                            *action = Some(OverviewAction::OpenTerminal(hog.path.clone()));
+                                        }
+                                        if ui.small_button("📋").on_hover_text("Copy path").clicked() {
+                                            *action = Some(OverviewAction::CopyPath(hog.path.clone()));
+                                        }
+                                        if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
+                                            *action = Some(OverviewAction::MoveToTrash(hog.path.clone(), hog.size));
+                                        }
+                                    });
+                                });
+                            });
+                        });
                 }
             });
         });

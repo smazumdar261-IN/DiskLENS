@@ -3,6 +3,7 @@ use crate::models::{format_size, FileCategory, LargeFileInfo};
 use crate::theme::{truncate_middle, AppTheme};
 use crate::ui::modals::{ConfirmAction, ModalManager};
 use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 
 pub struct LargestFilesState {
@@ -157,183 +158,73 @@ pub fn render_largest_files_view(
 
     ui.add_space(4.0);
 
-    let available_w = ui.available_width().max(550.0);
-
-    // 3. Compact Table Header
-    egui::Frame::none()
-        .fill(t.bg_elevated)
-        .rounding(4.0_f32)
-        .stroke(egui::Stroke::new(1.0_f32, t.border))
-        .inner_margin(Margin::symmetric(8.0, 5.0))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.add_sized([36.0, 18.0], egui::Label::new(RichText::new("#").strong().color(t.text_muted)));
-                let name_w = (available_w - 590.0).max(140.0);
-                ui.add_sized([name_w, 18.0], egui::Label::new(RichText::new("Item & Location").strong().color(t.text_muted)));
-                ui.add_sized([90.0, 18.0], egui::Label::new(RichText::new("Apparent Size").strong().color(t.text_muted)));
-                ui.add_sized([90.0, 18.0], egui::Label::new(RichText::new("Allocated Disk").strong().color(t.text_muted)));
-                ui.add_sized([95.0, 18.0], egui::Label::new(RichText::new("Category").strong().color(t.text_muted)));
-                ui.add_sized([115.0, 18.0], egui::Label::new(RichText::new("Assessment").strong().color(t.text_muted)));
-                ui.label(RichText::new("Actions").strong().color(t.text_muted));
-            });
-        });
-
-    ui.add_space(2.0);
-
-    // 4. Virtualized Standard 26-28px Height Table Rows
-    let row_height = 28.0_f32;
     let total_rows = filtered_files.len();
 
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show_rows(ui, row_height, total_rows, |ui, row_range| {
-            for idx in row_range {
+    TableBuilder::new(ui)
+        .striped(true)
+        .resizable(true)
+        .vscroll(true)
+        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        .column(Column::initial(36.0).at_least(30.0))
+        .column(Column::remainder().at_least(140.0).clip(true))
+        .column(Column::initial(90.0).at_least(70.0).resizable(true))
+        .column(Column::initial(90.0).at_least(70.0).resizable(true))
+        .column(Column::initial(95.0).at_least(70.0).resizable(true))
+        .column(Column::initial(115.0).at_least(80.0).resizable(true))
+        .column(Column::initial(130.0).at_least(90.0).resizable(true))
+        .header(24.0, |mut header| {
+            header.col(|ui| {
+                ui.label(RichText::new("#").strong().color(t.text_muted));
+            });
+            header.col(|ui| {
+                ui.label(RichText::new("Item & Location").strong().color(t.text_muted));
+            });
+            header.col(|ui| {
+                ui.label(RichText::new("Apparent Size").strong().color(t.text_muted));
+            });
+            header.col(|ui| {
+                ui.label(RichText::new("Allocated Disk").strong().color(t.text_muted));
+            });
+            header.col(|ui| {
+                ui.label(RichText::new("Category").strong().color(t.text_muted));
+            });
+            header.col(|ui| {
+                ui.label(RichText::new("Assessment").strong().color(t.text_muted));
+            });
+            header.col(|ui| {
+                ui.label(RichText::new("Actions").strong().color(t.text_muted));
+            });
+        })
+        .body(|mut body| {
+            body.rows(28.0, total_rows, |mut row| {
+                let idx = row.index();
                 if let Some(file) = filtered_files.get(idx) {
                     let full_p = file.path.display().to_string();
-                    let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(available_w, 26.0), Sense::click());
-                    let is_hovered = row_resp.hovered();
 
-                    let row_bg = if is_hovered {
-                        t.bg_elevated
-                    } else if idx % 2 == 0 {
-                        t.bg_container
-                    } else {
-                        Color32::TRANSPARENT
-                    };
+                    // Col 1: Rank (#01, #02, ...)
+                    row.col(|ui| {
+                        let rank_col = if idx < 3 { t.accent } else { t.text_muted };
+                        ui.label(RichText::new(format!("{:02}", idx + 1)).size(11.0).monospace().color(rank_col));
+                    });
 
-                    ui.painter().rect_filled(row_rect, 3.0_f32, row_bg);
+                    // Col 2: Name & truncated parent folder
+                    row.col(|ui| {
+                        let parent_str = file.path.parent().map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string()).unwrap_or_default();
+                        let display_name = truncate_middle(&file.name, 34);
+                        let name_text = if !parent_str.is_empty() {
+                            format!("{} {}  ({})", file.category.icon(), display_name, parent_str)
+                        } else {
+                            format!("{} {}", file.category.icon(), display_name)
+                        };
 
-                    // Rank (#01, #02, ...)
-                    let rank_col = if idx < 3 { t.accent } else { t.text_muted };
-                    ui.painter().text(
-                        egui::pos2(row_rect.min.x + 8.0, row_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        format!("{:02}", idx + 1),
-                        egui::FontId::monospace(11.0),
-                        rank_col,
-                    );
-
-                    let name_w = (available_w - 590.0).max(140.0);
-
-                    // Name & truncated parent folder
-                    let parent_str = file.path.parent().map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string()).unwrap_or_default();
-                    let max_c = (name_w / 8.5) as usize;
-                    let display_name = truncate_middle(&file.name, max_c.clamp(14, 44));
-                    let name_text = if !parent_str.is_empty() {
-                        format!("{} {}  ({})", file.category.icon(), display_name, parent_str)
-                    } else {
-                        format!("{} {}", file.category.icon(), display_name)
-                    };
-
-                    ui.painter().text(
-                        egui::pos2(row_rect.min.x + 40.0, row_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        name_text,
-                        egui::FontId::proportional(11.5),
-                        t.text,
-                    );
-
-                    let base_x = row_rect.min.x + 40.0 + name_w;
-
-                    // Apparent Size (Monospace)
-                    ui.painter().text(
-                        egui::pos2(base_x + 85.0, row_rect.center().y),
-                        egui::Align2::RIGHT_CENTER,
-                        file.formatted_size(),
-                        egui::FontId::monospace(11.5),
-                        t.text,
-                    );
-
-                    // Allocated Disk (Monospace)
-                    ui.painter().text(
-                        egui::pos2(base_x + 180.0, row_rect.center().y),
-                        egui::Align2::RIGHT_CENTER,
-                        file.formatted_allocated_size(),
-                        egui::FontId::monospace(11.5),
-                        t.cyan,
-                    );
-
-                    // Category Pill
-                    let cat_rect = Rect::from_min_size(
-                        egui::pos2(base_x + 195.0, row_rect.center().y - 8.5),
-                        Vec2::new(88.0, 17.0),
-                    );
-                    ui.painter().rect_filled(cat_rect, 3.0_f32, file.category.color().gamma_multiply(0.18));
-                    ui.painter().text(
-                        cat_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        file.category.display_name(),
-                        egui::FontId::proportional(10.0),
-                        file.category.color(),
-                    );
-
-                    // Assessment Pill
-                    let (badge_text, badge_col, badge_bg) = if file.nlink > 1 {
-                        ("🔗 Hardlink", t.purple, t.purple.gamma_multiply(0.18))
-                    } else if file.is_review_needed {
-                        ("⚠ Review Needed", t.warning, t.warning.gamma_multiply(0.18))
-                    } else if file.is_cache_or_temp {
-                        ("⚡ Safe Cache", t.accent, t.accent.gamma_multiply(0.18))
-                    } else {
-                        ("📄 User File", t.text_muted, t.bg_surface)
-                    };
-
-                    let assess_rect = Rect::from_min_size(
-                        egui::pos2(base_x + 295.0, row_rect.center().y - 8.5),
-                        Vec2::new(105.0, 17.0),
-                    );
-                    ui.painter().rect_filled(assess_rect, 3.0_f32, badge_bg);
-                    ui.painter().text(
-                        assess_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        badge_text,
-                        egui::FontId::proportional(10.0),
-                        badge_col,
-                    );
-
-                    // Hover-activated action toolbar
-                    let act_x = base_x + 410.0;
-                    let act_w = (row_rect.max.x - act_x - 4.0).max(120.0);
-                    let act_rect = Rect::from_min_size(
-                        egui::pos2(act_x, row_rect.center().y - 11.0),
-                        Vec2::new(act_w, 22.0),
-                    );
-
-                    if is_hovered {
-                        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(act_rect), |ui| {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 2.0;
-
-                                if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
-                                    let _ = FileActions::open_in_file_manager(&file.path);
-                                }
-
-                                if ui.small_button("📟").on_hover_text("Open terminal here").clicked() {
-                                    let _ = FileActions::open_terminal(&file.path);
-                                }
-
-                                if ui.small_button("📋").on_hover_text("Copy path").clicked() {
-                                    ui.output_mut(|o| o.copied_text = full_p.clone());
-                                    modals.show_toast("Copied path".to_string(), false);
-                                }
-
-                                if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
-                                    modals.pending_confirm = Some(ConfirmAction::MoveToTrash(file.path.clone(), file.size));
-                                }
-
-                                if ui.small_button("🔥").on_hover_text("Shred / Permanently delete").clicked() {
-                                    modals.pending_confirm = Some(ConfirmAction::PermanentDelete(file.path.clone(), file.size));
-                                }
-                            });
-                        });
-                    }
-
-                    if row_resp.double_clicked() {
-                        let _ = FileActions::open_file(&file.path);
-                    }
-
-                    if is_hovered {
-                        row_resp.on_hover_ui(|ui| {
+                        let item_resp = ui.add(
+                            egui::Label::new(RichText::new(name_text).size(11.5).color(t.text))
+                                .truncate(),
+                        );
+                        if item_resp.double_clicked() {
+                            let _ = FileActions::open_file(&file.path);
+                        }
+                        item_resp.on_hover_ui(|ui| {
                             ui.label(RichText::new(&file.name).strong().color(t.text));
                             ui.label(RichText::new(&full_p).size(10.5).monospace().color(t.text_muted));
                             ui.separator();
@@ -346,11 +237,81 @@ pub fn render_largest_files_view(
                             if file.nlink > 1 {
                                 ui.label(RichText::new(format!("🔗 Inode hardlinks count: {}", file.nlink)).size(10.5).color(t.purple));
                             }
-                            ui.label(RichText::new(format!("Assessment: {}", &file.risk_note)).size(11.0).color(badge_col));
+                            ui.label(RichText::new(format!("Assessment: {}", &file.risk_note)).size(11.0).color(t.accent));
                         });
-                    }
+                    });
+
+                    // Col 3: Apparent Size (Monospace)
+                    row.col(|ui| {
+                        ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().color(t.text));
+                    });
+
+                    // Col 4: Allocated Disk (Monospace)
+                    row.col(|ui| {
+                        ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().color(t.cyan));
+                    });
+
+                    // Col 5: Category Pill
+                    row.col(|ui| {
+                        let cat_pill = egui::Frame::none()
+                            .fill(file.category.color().gamma_multiply(0.18))
+                            .rounding(3.0_f32)
+                            .inner_margin(Margin::symmetric(6.0, 2.0));
+                        cat_pill.show(ui, |ui| {
+                            ui.label(RichText::new(file.category.display_name()).size(10.0).color(file.category.color()));
+                        });
+                    });
+
+                    // Col 6: Assessment Pill
+                    row.col(|ui| {
+                        let (badge_text, badge_col, badge_bg) = if file.nlink > 1 {
+                            ("🔗 Hardlink", t.purple, t.purple.gamma_multiply(0.18))
+                        } else if file.is_review_needed {
+                            ("⚠ Review Needed", t.warning, t.warning.gamma_multiply(0.18))
+                        } else if file.is_cache_or_temp {
+                            ("⚡ Safe Cache", t.accent, t.accent.gamma_multiply(0.18))
+                        } else {
+                            ("📄 User File", t.text_muted, t.bg_surface)
+                        };
+
+                        let pill = egui::Frame::none()
+                            .fill(badge_bg)
+                            .rounding(3.0_f32)
+                            .inner_margin(Margin::symmetric(6.0, 2.0));
+                        pill.show(ui, |ui| {
+                            ui.label(RichText::new(badge_text).size(10.0).color(badge_col));
+                        });
+                    });
+
+                    // Col 7: Actions Toolbar
+                    row.col(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+
+                            if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
+                                let _ = FileActions::open_in_file_manager(&file.path);
+                            }
+
+                            if ui.small_button("📟").on_hover_text("Open terminal here").clicked() {
+                                let _ = FileActions::open_terminal(&file.path);
+                            }
+
+                            if ui.small_button("📋").on_hover_text("Copy path").clicked() {
+                                ui.output_mut(|o| o.copied_text = full_p.clone());
+                                modals.show_toast("Copied path".to_string(), false);
+                            }
+
+                            if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
+                                modals.pending_confirm = Some(ConfirmAction::MoveToTrash(file.path.clone(), file.size));
+                            }
+
+                            if ui.small_button("🔥").on_hover_text("Shred / Permanently delete").clicked() {
+                                modals.pending_confirm = Some(ConfirmAction::PermanentDelete(file.path.clone(), file.size));
+                            }
+                        });
+                    });
                 }
-            }
+            });
         });
 
     ui.add_space(14.0);
