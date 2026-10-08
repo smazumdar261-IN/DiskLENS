@@ -48,7 +48,8 @@ pub fn render_storage_view(
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            let total_avail = ui.available_width().max(320.0);
+            let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
+            let total_avail = (ui.available_width() - scrollbar_margin).max(320.0);
 
             ui.vertical(|ui| {
                 ui.set_max_width(total_avail);

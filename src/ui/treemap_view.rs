@@ -42,107 +42,117 @@ pub fn render_treemap_view(
 
     let current_node = root.find_node_by_path(&state.current_path).unwrap_or(root);
 
-    // 1. Sticky Navigation Bar & Controls
-    egui::Frame::none()
-        .fill(t.bg_elevated)
-        .rounding(6.0_f32)
-        .stroke(egui::Stroke::new(1.0_f32, t.border))
-        .inner_margin(Margin::symmetric(10.0, 6.0))
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                // Back to Overview button
-                if ui.button(RichText::new("◀ Back to Overview").size(11.5).strong().color(t.accent)).on_hover_text("Return to Overview dashboard").clicked() {
-                    *active_tab = ActiveTab::Overview;
-                }
+            let total_w = (ui.available_width() - scrollbar_margin).max(320.0);
 
-                ui.separator();
+            ui.vertical(|ui| {
+                ui.set_max_width(total_w);
+                ui.add_space(2.0);
 
-                // Up One Level button
-                let can_go_up = state.current_path != root.path && state.current_path.parent().is_some();
-                if ui.add_enabled(
-                    can_go_up,
-                    egui::Button::new(RichText::new("⬆ Up One Level").size(11.5))
-                ).on_hover_text("Navigate to parent directory").clicked() {
-                    if let Some(parent) = state.current_path.parent() {
-                        if parent.starts_with(&root.path) || parent == root.path {
-                            state.current_path = parent.to_path_buf();
-                            state.selected_item = None;
-                        }
-                    }
-                }
+                // 1. Sticky Navigation Bar & Controls
+                egui::Frame::none()
+                    .fill(t.bg_elevated)
+                    .rounding(6.0_f32)
+                    .stroke(egui::Stroke::new(1.0_f32, t.border))
+                    .inner_margin(Margin::symmetric(10.0, 6.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Back to Overview button
+                            if ui.button(RichText::new("◀ Back to Overview").size(11.5).strong().color(t.accent)).on_hover_text("Return to Overview dashboard").clicked() {
+                                *active_tab = ActiveTab::Overview;
+                            }
 
-                // Root button
-                if ui.add(
-                    egui::Button::new(RichText::new("🏠 Root").size(11.5).strong().color(t.accent))
-                        .fill(Color32::TRANSPARENT)
-                ).on_hover_text("Return to scan root").clicked() {
-                    state.current_path = root.path.clone();
-                    state.selected_item = None;
-                }
+                            ui.separator();
 
-                ui.separator();
+                            // Up One Level button
+                            let can_go_up = state.current_path != root.path && state.current_path.parent().is_some();
+                            if ui.add_enabled(
+                                can_go_up,
+                                egui::Button::new(RichText::new("⬆ Up One Level").size(11.5))
+                            ).on_hover_text("Navigate to parent directory").clicked() {
+                                if let Some(parent) = state.current_path.parent() {
+                                    if parent.starts_with(&root.path) || parent == root.path {
+                                        state.current_path = parent.to_path_buf();
+                                        state.selected_item = None;
+                                    }
+                                }
+                            }
 
-                // Breadcrumb path components
-                let rel_path = state
-                    .current_path
-                    .strip_prefix(root.path.parent().unwrap_or(&root.path))
-                    .unwrap_or(&state.current_path)
-                    .to_path_buf();
+                            // Root button
+                            if ui.add(
+                                egui::Button::new(RichText::new("🏠 Root").size(11.5).strong().color(t.accent))
+                                    .fill(Color32::TRANSPARENT)
+                            ).on_hover_text("Return to scan root").clicked() {
+                                state.current_path = root.path.clone();
+                                state.selected_item = None;
+                            }
 
-                let mut accum = root.path.parent().unwrap_or(&root.path).to_path_buf();
-                let mut clicked_crumb = None;
+                            ui.separator();
 
-                for comp in rel_path.iter() {
-                    accum.push(comp);
-                    let c_str = comp.to_string_lossy().to_string();
-                    let is_active = accum == state.current_path;
-                    let target_clone = accum.clone();
+                            // Breadcrumb path components
+                            let rel_path = state
+                                .current_path
+                                .strip_prefix(root.path.parent().unwrap_or(&root.path))
+                                .unwrap_or(&state.current_path)
+                                .to_path_buf();
 
-                    if ui.selectable_label(is_active, RichText::new(&c_str).size(11.5).strong()).clicked() {
-                        clicked_crumb = Some(target_clone);
-                    }
-                    ui.label(RichText::new(">").size(10.0).color(t.text_muted));
-                }
+                            let mut accum = root.path.parent().unwrap_or(&root.path).to_path_buf();
+                            let mut clicked_crumb = None;
 
-                if let Some(p) = clicked_crumb {
-                    state.current_path = p;
-                    state.selected_item = None;
-                }
+                            for comp in rel_path.iter() {
+                                accum.push(comp);
+                                let c_str = comp.to_string_lossy().to_string();
+                                let is_active = accum == state.current_path;
+                                let target_clone = accum.clone();
 
-                // Right controls: Depth slider
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Depth:").size(11.0).color(t.text_muted));
-                        if ui.small_button("−").clicked() && state.max_depth > 1 {
-                            state.max_depth -= 1;
-                        }
-                        ui.label(RichText::new(format!("{}", state.max_depth)).size(11.5).strong().color(t.accent));
-                        if ui.small_button("+").clicked() && state.max_depth < 6 {
-                            state.max_depth += 1;
-                        }
+                                if ui.selectable_label(is_active, RichText::new(&c_str).size(11.5).strong()).clicked() {
+                                    clicked_crumb = Some(target_clone);
+                                }
+                                ui.label(RichText::new(">").size(10.0).color(t.text_muted));
+                            }
+
+                            if let Some(p) = clicked_crumb {
+                                state.current_path = p;
+                                state.selected_item = None;
+                            }
+
+                            // Right controls: Depth slider
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(RichText::new("Depth:").size(11.0).color(t.text_muted));
+                                    if ui.small_button("−").clicked() && state.max_depth > 1 {
+                                        state.max_depth -= 1;
+                                    }
+                                    ui.label(RichText::new(format!("{}", state.max_depth)).size(11.5).strong().color(t.accent));
+                                    if ui.small_button("+").clicked() && state.max_depth < 6 {
+                                        state.max_depth += 1;
+                                    }
+                                });
+                            });
+                        });
                     });
-                });
-            });
-        });
 
-    ui.add_space(6.0);
+                ui.add_space(6.0);
 
-    // 2. Treemap Canvas + Right Inspector Split (Clamped Layout)
-    let total_w = ui.available_width();
-    let is_wide = total_w >= 640.0;
-    let inspector_w = if is_wide { (total_w * 0.30).min(260.0) } else { 0.0 };
-    let spacing = if is_wide { 8.0 } else { 0.0 };
-    let canvas_w = if is_wide { (total_w - inspector_w - spacing).max(100.0) } else { total_w };
-    let canvas_h = (ui.available_height() - 76.0).max(200.0);
+                // 2. Treemap Canvas + Right Inspector Split (Clamped Layout)
+                let is_wide = total_w >= 640.0;
+                let spacing = if is_wide { 6.0 } else { 0.0 };
+                let inspector_w = if is_wide { (total_w * 0.28).clamp(210.0, 260.0) } else { 0.0 };
+                let canvas_w = if is_wide { (total_w - inspector_w - spacing).max(100.0) } else { total_w };
+                let canvas_h = (ui.available_height() - 76.0).max(200.0);
 
-    let mut clicked_item: Option<TreemapItem> = None;
-    let mut right_clicked_item: Option<TreemapItem> = None;
-    let mut new_hovered: Option<TreemapItem> = None;
-    let mut drill_down_path = None;
+                let mut clicked_item: Option<TreemapItem> = None;
+                let mut right_clicked_item: Option<TreemapItem> = None;
+                let mut new_hovered: Option<TreemapItem> = None;
+                let mut drill_down_path = None;
 
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = spacing;
-        // Main Treemap Stage
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = spacing;
+                    // Main Treemap Stage
         let (response, painter) = ui.allocate_painter(Vec2::new(canvas_w, canvas_h), Sense::click_and_drag());
         let canvas_rect = response.rect;
         let mouse_pos = ui.input(|i| i.pointer.hover_pos());
@@ -419,4 +429,8 @@ pub fn render_treemap_view(
             });
         }
     });
+
+    ui.add_space(8.0);
+            });
+        });
 }

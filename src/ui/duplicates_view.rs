@@ -188,7 +188,8 @@ pub fn render_duplicates_view(
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            let available_w = ui.available_width().max(320.0);
+            let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
+            let available_w = (ui.available_width() - scrollbar_margin).max(320.0);
             let content_w = available_w;
 
             ui.vertical(|ui| {

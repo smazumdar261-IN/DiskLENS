@@ -39,6 +39,9 @@ pub fn render_largest_files_view(
     dark_mode: bool,
 ) {
     let t = AppTheme::tokens(dark_mode);
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
+    let avail_w = (ui.available_width() - scrollbar_margin).max(100.0);
+    ui.set_max_width(avail_w);
 
     // 1. Safety Principle Banner
     egui::Frame::none()

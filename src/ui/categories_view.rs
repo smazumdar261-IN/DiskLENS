@@ -58,7 +58,8 @@ pub fn render_categories_view(
         filtered_exts.sort_by(|a, b| b.count.cmp(&a.count));
     }
 
-    let total_avail = ui.available_width().max(340.0);
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
+    let total_avail = (ui.available_width() - scrollbar_margin).max(340.0);
 
     ui.vertical(|ui| {
         ui.set_max_width(total_avail);
