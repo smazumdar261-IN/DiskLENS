@@ -1,43 +1,63 @@
 use crate::actions::FileActions;
-use crate::models::{FileNode, SortColumn, SortOrder};
-use crate::theme::{truncate_middle, AppTheme};
+use crate::app::ActiveTab;
+use crate::models::{format_size, FileCategory, FileNode, SortColumn, SortOrder};
+use crate::theme::AppTheme;
 use crate::ui::modals::{ConfirmAction, ModalManager};
-use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use crate::ui::treemap_view::{render_treemap_view, TreemapViewState};
+use eframe::egui::{self, Margin, Rect, RichText, Sense, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExplorerMode {
+    Tree,
+    Treemap,
+}
+
+impl Default for ExplorerMode {
+    fn default() -> Self {
+        ExplorerMode::Tree
+    }
+}
+
 pub struct TreeViewState {
+    pub mode: ExplorerMode,
     pub current_path: PathBuf,
     pub sort_column: SortColumn,
     pub sort_order: SortOrder,
     pub search_filter: String,
+    pub category_filter: Option<FileCategory>,
     pub min_size_filter_mb: f64,
     pub selected_node: Option<PathBuf>,
+    pub treemap_state: TreemapViewState,
 }
 
 impl Default for TreeViewState {
     fn default() -> Self {
         Self {
+            mode: ExplorerMode::Tree,
             current_path: PathBuf::new(),
             sort_column: SortColumn::Size,
             sort_order: SortOrder::Descending,
             search_filter: String::new(),
+            category_filter: None,
             min_size_filter_mb: 0.0,
             selected_node: None,
+            treemap_state: TreemapViewState::default(),
         }
     }
 }
 
-/// Compact, high-density Folder Tree Explorer.
-/// Standardizes rows to 26-28px height, formats all numbers in monospace font,
-/// displays both Apparent Size and Actual Disk Allocation, and implements hover-activated action toolbars.
+/// Unified Explorer View: Unifies Folder Tree, Space Hogs, Category filtering, and Treemap.
+/// Mode 1: Tree & Space Hogs (Bounded TableBuilder with interactive category bar and sorting).
+/// Mode 2: Treemap (Clamped Canvas with bounded inspector).
 pub fn render_tree_view(
     ui: &mut Ui,
     root: &FileNode,
     state: &mut TreeViewState,
     modals: &mut ModalManager,
     dark_mode: bool,
-    _on_rescan: &mut dyn FnMut(PathBuf),
+    on_rescan: &mut dyn FnMut(PathBuf),
 ) {
     let t = AppTheme::tokens(dark_mode);
 
@@ -47,7 +67,7 @@ pub fn render_tree_view(
 
     let current_node = root.find_node_by_path(&state.current_path).unwrap_or(root);
 
-    // 1. Breadcrumbs & Top Navigation Bar
+    // 1. Mode Switcher & Breadcrumbs Bar
     egui::Frame::none()
         .fill(t.bg_elevated)
         .rounding(6.0_f32)
@@ -55,11 +75,25 @@ pub fn render_tree_view(
         .inner_margin(Margin::symmetric(10.0, 6.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
+                // Two-mode toggle buttons
+                let is_tree = state.mode == ExplorerMode::Tree;
+                if ui.selectable_label(is_tree, RichText::new("📁 File List & Hogs").strong()).clicked() {
+                    state.mode = ExplorerMode::Tree;
+                }
+                let is_treemap = state.mode == ExplorerMode::Treemap;
+                if ui.selectable_label(is_treemap, RichText::new("⊞ Treemap Canvas").strong()).clicked() {
+                    state.mode = ExplorerMode::Treemap;
+                }
+
+                ui.separator();
+
+                let parent_opt = state.current_path.parent().map(|p| p.to_path_buf());
                 if ui.button("↰ Up").on_hover_text("Go to parent directory").clicked() {
-                    if let Some(parent) = state.current_path.parent() {
+                    if let Some(parent) = parent_opt {
                         if parent.starts_with(&root.path) || parent == root.path {
-                            state.current_path = parent.to_path_buf();
+                            state.current_path = parent.clone();
                             state.selected_node = None;
+                            state.treemap_state.current_path = parent;
                         }
                     }
                 }
@@ -67,6 +101,7 @@ pub fn render_tree_view(
                 if ui.button("🏠 Root").on_hover_text("Return to scan root").clicked() {
                     state.current_path = root.path.clone();
                     state.selected_node = None;
+                    state.treemap_state.current_path = root.path.clone();
                 }
 
                 ui.label(RichText::new("|").size(11.0).color(t.border));
@@ -93,8 +128,9 @@ pub fn render_tree_view(
                 }
 
                 if let Some(p) = clicked_crumb {
-                    state.current_path = p;
+                    state.current_path = p.clone();
                     state.selected_node = None;
+                    state.treemap_state.current_path = p;
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -116,22 +152,87 @@ pub fn render_tree_view(
             });
         });
 
-    ui.add_space(6.0);
+    ui.add_space(4.0);
 
-    // 2. Filter & Sort Toolbar
+    // MODE 2: Treemap (Clamped Canvas)
+    if state.mode == ExplorerMode::Treemap {
+        state.treemap_state.current_path = state.current_path.clone();
+        let mut tab_dummy = ActiveTab::DirectoryTree;
+        render_treemap_view(ui, root, &mut state.treemap_state, &mut tab_dummy, modals, dark_mode, on_rescan);
+        state.current_path = state.treemap_state.current_path.clone();
+        return;
+    }
+
+    // MODE 1: Tree & Space Hogs (TableBuilder)
+
+    // Interactive category distribution chips bar (top row)
+    let mut cat_sizes = [0u64; FileCategory::ALL.len()];
+    for child in &current_node.children {
+        if let Some(pos) = FileCategory::ALL.iter().position(|c| *c == child.category) {
+            cat_sizes[pos] += child.size;
+        }
+    }
+    let total_children_size: u64 = cat_sizes.iter().sum();
+
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 4.0);
+        let is_all_sel = state.category_filter.is_none();
+        let all_btn = ui.selectable_label(is_all_sel, RichText::new(format!("◆ All ({})", format_size(total_children_size))).size(11.0).strong());
+        if all_btn.clicked() {
+            state.category_filter = None;
+        }
+
+        for (idx, cat) in FileCategory::ALL.iter().enumerate() {
+            let sz = cat_sizes[idx];
+            if sz == 0 { continue; }
+            let pct = if total_children_size > 0 { (sz as f64 / total_children_size as f64) * 100.0 } else { 0.0 };
+            let is_sel = state.category_filter == Some(*cat);
+            let chip_text = format!("{} {} ({} · {:.1}%)", cat.icon(), cat.display_name(), format_size(sz), pct);
+            let chip_btn = ui.selectable_label(
+                is_sel,
+                RichText::new(chip_text).size(11.0).color(if is_sel { cat.color() } else { t.text }),
+            );
+            if chip_btn.clicked() {
+                if is_sel {
+                    state.category_filter = None;
+                } else {
+                    state.category_filter = Some(*cat);
+                }
+            }
+        }
+    });
+
+    ui.add_space(4.0);
+
+    // Filter, Mode Preset & Sorting Toolbar
     ui.horizontal(|ui| {
+        // Preset Sorting Toggle: Hierarchical vs Space Hogs
+        let is_hogs_mode = state.sort_column == SortColumn::Size && state.sort_order == SortOrder::Descending;
+        let hogs_btn = ui.selectable_label(is_hogs_mode, RichText::new("⚠ Space Hogs (Size ↓)").size(11.0).strong().color(if is_hogs_mode { t.warning } else { t.text_muted }));
+        if hogs_btn.clicked() {
+            state.sort_column = SortColumn::Size;
+            state.sort_order = SortOrder::Descending;
+        }
+
+        let is_tree_mode = state.sort_column == SortColumn::Name && state.sort_order == SortOrder::Ascending;
+        let tree_btn = ui.selectable_label(is_tree_mode, RichText::new("🌲 Hierarchy (Name ↑)").size(11.0).strong());
+        if tree_btn.clicked() {
+            state.sort_column = SortColumn::Name;
+            state.sort_order = SortOrder::Ascending;
+        }
+
+        ui.separator();
+
         ui.label(RichText::new("Filter:").size(11.0).color(t.text_muted));
         ui.add_sized(
-            [160.0, 24.0],
+            [140.0, 24.0],
             egui::TextEdit::singleline(&mut state.search_filter).hint_text("Search name/ext..."),
         );
-
         if !state.search_filter.is_empty() && ui.small_button("✕").clicked() {
             state.search_filter.clear();
         }
 
-        ui.separator();
-        ui.label(RichText::new("Min Size:").size(11.0).color(t.text_muted));
+        ui.label(RichText::new("Min:").size(11.0).color(t.text_muted));
         ui.add(
             egui::DragValue::new(&mut state.min_size_filter_mb)
                 .speed(1.0)
@@ -140,38 +241,16 @@ pub fn render_tree_view(
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let sort_name_label = if state.sort_column == SortColumn::Name {
-                if state.sort_order == SortOrder::Ascending { "Name ↑" } else { "Name ↓" }
-            } else {
-                "Name"
-            };
-            if ui.selectable_label(state.sort_column == SortColumn::Name, sort_name_label).clicked() {
-                toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Name);
+            if let Some(cat) = state.category_filter {
+                ui.label(RichText::new(format!("Filtered: {}", cat.display_name())).size(10.5).color(cat.color()));
+                if ui.small_button("Clear").clicked() {
+                    state.category_filter = None;
+                }
             }
-
-            let sort_size_label = if state.sort_column == SortColumn::Size {
-                if state.sort_order == SortOrder::Descending { "Size ↓" } else { "Size ↑" }
-            } else {
-                "Size"
-            };
-            if ui.selectable_label(state.sort_column == SortColumn::Size, sort_size_label).clicked() {
-                toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Size);
-            }
-
-            let sort_items_label = if state.sort_column == SortColumn::ItemCount {
-                if state.sort_order == SortOrder::Descending { "Items ↓" } else { "Items ↑" }
-            } else {
-                "Items"
-            };
-            if ui.selectable_label(state.sort_column == SortColumn::ItemCount, sort_items_label).clicked() {
-                toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::ItemCount);
-            }
-
-            ui.label(RichText::new("Sort:").size(11.0).color(t.text_muted));
         });
     });
 
-    ui.add_space(6.0);
+    ui.add_space(4.0);
 
     let min_bytes = (state.min_size_filter_mb * 1024.0 * 1024.0) as u64;
     let mut display_children: Vec<&FileNode> = current_node
@@ -181,6 +260,11 @@ pub fn render_tree_view(
             if c.size < min_bytes {
                 return false;
             }
+            if let Some(cat) = state.category_filter {
+                if c.category != cat {
+                    return false;
+                }
+            }
             if !state.search_filter.is_empty() {
                 return c.name.to_lowercase().contains(&state.search_filter.to_lowercase());
             }
@@ -188,7 +272,6 @@ pub fn render_tree_view(
         })
         .collect();
 
-    // Sort items
     let sort_col = state.sort_column;
     let sort_ord = state.sort_order;
     display_children.sort_by(|a, b| {
@@ -210,170 +293,136 @@ pub fn render_tree_view(
     let mut navigate_to = None;
     let total_rows = display_children.len();
 
-    TableBuilder::new(ui)
-        .striped(true)
-        .resizable(true)
-        .vscroll(true)
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::remainder().at_least(140.0).clip(true))
-        .column(Column::initial(100.0).at_least(75.0).resizable(true))
-        .column(Column::initial(90.0).at_least(70.0).resizable(true))
-        .column(Column::initial(90.0).at_least(70.0).resizable(true))
-        .column(Column::initial(75.0).at_least(50.0).resizable(true))
-        .column(Column::initial(85.0).at_least(60.0).resizable(true))
-        .column(Column::initial(110.0).at_least(80.0).resizable(true))
-        .column(Column::initial(130.0).at_least(90.0).resizable(true))
-        .header(24.0, |mut header| {
-            header.col(|ui| {
-                if ui.selectable_label(sort_col == SortColumn::Name, RichText::new("Name").strong().color(t.text_muted)).clicked() {
-                    toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Name);
-                }
-            });
-            header.col(|ui| {
-                if ui.selectable_label(sort_col == SortColumn::Size, RichText::new("Usage (Parent)").strong().color(t.text_muted)).clicked() {
-                    toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Size);
-                }
-            });
-            header.col(|ui| {
-                if ui.selectable_label(sort_col == SortColumn::Size, RichText::new("Apparent Size").strong().color(t.text_muted)).clicked() {
-                    toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Size);
-                }
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Allocated Disk").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                if ui.selectable_label(sort_col == SortColumn::ItemCount, RichText::new("Items / Inodes").strong().color(t.text_muted)).clicked() {
-                    toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::ItemCount);
-                }
-            });
-            header.col(|ui| {
-                if ui.selectable_label(sort_col == SortColumn::Type, RichText::new("Type").strong().color(t.text_muted)).clicked() {
-                    toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Type);
-                }
-            });
-            header.col(|ui| {
-                if ui.selectable_label(sort_col == SortColumn::Modified, RichText::new("Modified").strong().color(t.text_muted)).clicked() {
-                    toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Modified);
-                }
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Actions").strong().color(t.text_muted));
-            });
-        })
-        .body(|mut body| {
-            body.rows(28.0, total_rows, |mut row| {
-                let idx = row.index();
-                if let Some(child) = display_children.get(idx) {
-                    let is_selected = match &state.selected_node {
-                        Some(p) => *p == child.path,
-                        None => false,
-                    };
-                    row.set_selected(is_selected);
-
-                    // Col 1: Name & Icon
-                    row.col(|ui| {
-                        let icon = if child.is_dir { "📁" } else { child.category.icon() };
-                        let display_n = truncate_middle(&child.name, 34);
-                        let name_label = format!("{} {}", icon, display_n);
-                        let btn = ui.selectable_label(is_selected, RichText::new(name_label).size(11.5).color(t.text));
-                        if btn.clicked() {
-                            state.selected_node = Some(child.path.clone());
-                        }
-                        if btn.double_clicked() {
-                            if child.is_dir {
-                                navigate_to = Some(child.path.clone());
-                            } else {
-                                let _ = FileActions::open_file(&child.path);
-                            }
+    let avail_w = ui.available_width();
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .max_width(avail_w)
+        .show(ui, |ui| {
+            TableBuilder::new(ui)
+                .striped(true)
+                .resizable(false)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::remainder().clip(true)) // File/Folder Name: absorbs all leftover width
+                .column(Column::exact(95.0))            // Apparent Size
+                .column(Column::exact(100.0))           // Inline visual bar (% of parent)
+                .column(Column::exact(85.0))            // Category badge
+                .column(Column::exact(80.0))            // Action buttons
+                .header(24.0, |mut header| {
+                    header.col(|ui| {
+                        if ui.selectable_label(sort_col == SortColumn::Name, RichText::new("Name / Path").strong().color(t.text_muted)).clicked() {
+                            toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Name);
                         }
                     });
-
-                    // Col 2: Usage Bar & Percentage
-                    row.col(|ui| {
-                        let pct = (child.size as f32 / total_parent_size as f32).clamp(0.0, 1.0);
-                        let bar_w = (ui.available_width() - 42.0).clamp(16.0, 50.0);
-                        let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), Sense::hover());
-                        ui.painter().rect_filled(bar_rect, 2.0_f32, t.bg_input);
-                        let filled_w = (bar_rect.width() * pct).max(1.0);
-                        let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
-                        ui.painter().rect_filled(filled_rect, 2.0_f32, if child.is_dir { t.accent } else { child.category.color() });
-                        ui.label(RichText::new(format!("{:.0}%", pct * 100.0)).size(10.5).monospace().color(t.text_muted));
+                    header.col(|ui| {
+                        if ui.selectable_label(sort_col == SortColumn::Size, RichText::new("Size").strong().color(t.text_muted)).clicked() {
+                            toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Size);
+                        }
                     });
-
-                    // Col 3: Apparent Size (Monospace)
-                    row.col(|ui| {
-                        ui.label(RichText::new(child.formatted_size()).size(11.0).monospace().color(t.text));
+                    header.col(|ui| {
+                        ui.label(RichText::new("Usage").strong().color(t.text_muted));
                     });
-
-                    // Col 4: Allocated Disk (Monospace)
-                    row.col(|ui| {
-                        ui.label(RichText::new(child.formatted_allocated_size()).size(11.0).monospace().color(t.cyan));
+                    header.col(|ui| {
+                        if ui.selectable_label(sort_col == SortColumn::Type, RichText::new("Type").strong().color(t.text_muted)).clicked() {
+                            toggle_sort(&mut state.sort_column, &mut state.sort_order, SortColumn::Type);
+                        }
                     });
-
-                    // Col 5: Items / Inodes
-                    row.col(|ui| {
-                        let items_str = if child.is_dir { format!("{}", child.total_items()) } else { "1".to_string() };
-                        ui.label(RichText::new(items_str).size(10.5).monospace().color(t.text_muted));
+                    header.col(|ui| {
+                        ui.label(RichText::new("Actions").strong().color(t.text_muted));
                     });
+                })
+                .body(|body| {
+                    body.rows(28.0, total_rows, |mut row| {
+                        let idx = row.index();
+                        if let Some(child) = display_children.get(idx) {
+                            let is_selected = match &state.selected_node {
+                                Some(p) => *p == child.path,
+                                None => false,
+                            };
+                            row.set_selected(is_selected);
 
-                    // Col 6: Type
-                    row.col(|ui| {
-                        let type_s = if child.is_dir { "Folder" } else { child.category.display_name() };
-                        let color = if child.is_dir { t.text_secondary } else { child.category.color() };
-                        ui.label(RichText::new(type_s).size(10.5).color(color));
-                    });
+                            // Col 1: Name / Path (absorbs remainder, clipped)
+                            row.col(|ui| {
+                                let icon = if child.is_dir { "📁" } else { child.category.icon() };
+                                let name_label = format!("{} {}", icon, child.name);
+                                let btn = ui.add(
+                                    egui::SelectableLabel::new(is_selected, RichText::new(name_label).size(11.5).color(t.text))
+                                ).on_hover_text(child.path.display().to_string());
 
-                    // Col 7: Modified
-                    row.col(|ui| {
-                        ui.label(RichText::new(child.formatted_modified()).size(10.5).monospace().color(t.text_muted));
-                    });
-
-                    // Col 8: Actions Toolbar
-                    row.col(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 2.0;
-
-                            if child.is_dir {
-                                if ui.small_button("Explore →").on_hover_text("Open folder").clicked() {
-                                    navigate_to = Some(child.path.clone());
+                                if btn.clicked() {
+                                    state.selected_node = Some(child.path.clone());
                                 }
-                            } else {
-                                if ui.small_button("📄").on_hover_text("Open file").clicked() {
-                                    let _ = FileActions::open_file(&child.path);
+                                if btn.double_clicked() {
+                                    if child.is_dir {
+                                        navigate_to = Some(child.path.clone());
+                                    } else {
+                                        let _ = FileActions::open_file(&child.path);
+                                    }
                                 }
-                            }
+                            });
 
-                            if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
-                                let _ = FileActions::open_in_file_manager(&child.path);
-                            }
+                            // Col 2: Apparent Size (95px)
+                            row.col(|ui| {
+                                ui.label(RichText::new(child.formatted_size()).size(11.0).monospace().color(t.text));
+                            });
 
-                            if ui.small_button("📟").on_hover_text("Open terminal here").clicked() {
-                                let _ = FileActions::open_terminal(&child.path);
-                            }
+                            // Col 3: Usage (% of parent with inline visual bar, 100px)
+                            row.col(|ui| {
+                                let pct = (child.size as f32 / total_parent_size as f32).clamp(0.0, 1.0);
+                                let bar_w = 48.0_f32;
+                                let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), Sense::hover());
+                                ui.painter().rect_filled(bar_rect, 2.0_f32, t.bg_input);
+                                let filled_w = (bar_w * pct).max(1.0);
+                                let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
+                                ui.painter().rect_filled(filled_rect, 2.0_f32, if child.is_dir { t.accent } else { child.category.color() });
+                                ui.label(RichText::new(format!("{:.0}%", pct * 100.0)).size(10.5).monospace().color(t.text_muted));
+                            });
 
-                            if ui.small_button("📋").on_hover_text("Copy path").clicked() {
-                                let p_str = child.path.display().to_string();
-                                ui.output_mut(|o| o.copied_text = p_str);
-                                modals.show_toast("Copied path".to_string(), false);
-                            }
+                            // Col 4: Category badge (85px)
+                            row.col(|ui| {
+                                let type_s = if child.is_dir { "Folder" } else { child.category.display_name() };
+                                let color = if child.is_dir { t.text_secondary } else { child.category.color() };
+                                ui.label(RichText::new(type_s).size(10.5).color(color));
+                            });
 
-                            if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
-                                modals.pending_confirm = Some(ConfirmAction::MoveToTrash(child.path.clone(), child.size));
-                            }
+                            // Col 5: Actions toolbar (80px)
+                            row.col(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 2.0;
 
-                            if ui.small_button("🔥").on_hover_text("Shred / Permanently Delete").clicked() {
-                                modals.pending_confirm = Some(ConfirmAction::PermanentDelete(child.path.clone(), child.size));
-                            }
-                        });
+                                    if child.is_dir {
+                                        if ui.small_button("→").on_hover_text("Explore folder").clicked() {
+                                            navigate_to = Some(child.path.clone());
+                                        }
+                                    } else {
+                                        if ui.small_button("📄").on_hover_text("Open file").clicked() {
+                                            let _ = FileActions::open_file(&child.path);
+                                        }
+                                    }
+
+                                    if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
+                                        let _ = FileActions::open_in_file_manager(&child.path);
+                                    }
+
+                                    if ui.small_button("📋").on_hover_text("Copy path").clicked() {
+                                        let p_str = child.path.display().to_string();
+                                        ui.output_mut(|o| o.copied_text = p_str);
+                                        modals.show_toast("Copied path".to_string(), false);
+                                    }
+
+                                    if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
+                                        modals.pending_confirm = Some(ConfirmAction::MoveToTrash(child.path.clone(), child.size));
+                                    }
+                                });
+                            });
+                        }
                     });
-                }
-            });
+                });
         });
 
     if let Some(target) = navigate_to {
-        state.current_path = target;
+        state.current_path = target.clone();
         state.selected_node = None;
+        state.treemap_state.current_path = target;
     }
 
     ui.add_space(14.0);

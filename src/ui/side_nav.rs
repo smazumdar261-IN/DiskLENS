@@ -75,40 +75,26 @@ pub fn render_side_nav(
                     ui.add_space(4.0);
                 }
 
-                // 2. Navigation Sections
-                let sections: [(&str, &[(ActiveTab, &str, &str, &str, Option<String>)]); 4] = [
+                // 2. Navigation Sections (Consolidated Architecture)
+                let sections: [(&str, &[(ActiveTab, &str, &str, &str, Option<String>)]); 2] = [
                     (
-                        "ANALYSIS & EXPLORER",
+                        "ANALYSIS",
                         &[
                             (ActiveTab::Storage, "🏠", "Storage Home", "", None),
                             (ActiveTab::Overview, "📊", "Overview", "1", None),
-                            (ActiveTab::Treemap, "⊞", "Treemap", "2", None),
-                            (ActiveTab::DirectoryTree, "📁", "Folder Tree", "3", None),
-                            (ActiveTab::LargestFiles, "⚠", "Space Hogs", "4", if hogs_count > 0 { Some(format!("{}", hogs_count.min(99))) } else { None }),
-                            (ActiveTab::Categories, "▤", "File Types", "5", None),
-                        ],
-                    ),
-                    (
-                        "OPTIMIZATION & CLEANUP",
-                        &[
-                            (ActiveTab::Duplicates, "📋", "Duplicates", "6", None),
+                            (ActiveTab::DirectoryTree, "🔍", "Explorer", "2", if hogs_count > 0 { Some(format!("{}", hogs_count.min(99))) } else { None }),
+                            (ActiveTab::Duplicates, "📋", "Duplicates", "3", None),
                             (ActiveTab::SafeTrash, "🗑", "Safe Trash", "C", None),
-                            (ActiveTab::History, "📈", "History & Growth", "7", None),
                         ],
                     ),
                     (
-                        "SYSTEM & HARDWARE",
+                        "MAINTENANCE & HARDWARE",
                         &[
-                            (ActiveTab::MountPoints, "🖴", "Mounts & Btrfs", "M", None),
+                            (ActiveTab::History, "📈", "History & Growth", "4", None),
+                            (ActiveTab::MountPoints, "🖴", "Mounts & Subvolumes", "M", None),
                             (ActiveTab::DiagnosticsSmart, "🩺", "S.M.A.R.T. Health", "H", Some("98%".to_string())),
                             (ActiveTab::SystemLogs, "📜", "Event Logs", "L", None),
-                        ],
-                    ),
-                    (
-                        "ENGINE & SYSTEM",
-                        &[
-                            (ActiveTab::RustEngine, "🦀", "Rust Core CLI", "8", Some("v2.4".to_string())),
-                            (ActiveTab::Documentation, "📖", "Documentation", "D", None),
+                            (ActiveTab::Documentation, "📖", "User Manual", "D", None),
                         ],
                     ),
                 ];
@@ -122,7 +108,11 @@ pub fn render_side_nav(
 
                     for (tab, icon, label, shortcut, badge) in items {
                         let is_available = is_view_available(*tab);
-                        let is_selected = *active_tab == *tab;
+                        let is_selected = if *tab == ActiveTab::DirectoryTree {
+                            matches!(*active_tab, ActiveTab::DirectoryTree | ActiveTab::Treemap | ActiveTab::LargestFiles | ActiveTab::Categories)
+                        } else {
+                            *active_tab == *tab
+                        };
                         let item_h = 30.0;
 
                         if is_available {

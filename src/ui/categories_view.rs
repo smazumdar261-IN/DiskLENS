@@ -58,43 +58,29 @@ pub fn render_categories_view(
         filtered_exts.sort_by(|a, b| b.count.cmp(&a.count));
     }
 
-    egui::ScrollArea::vertical()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            let total_avail = ui.available_width().max(340.0);
+    let total_avail = ui.available_width().max(340.0);
 
-            ui.vertical(|ui| {
-                ui.set_max_width(total_avail);
-                ui.add_space(4.0);
+    ui.vertical(|ui| {
+        ui.set_max_width(total_avail);
 
-                // 1. Compact Horizontal Category Filter Chip Bar (Single Row, ~32px)
-                egui::Frame::none()
-                    .fill(t.bg_elevated)
-                    .rounding(6.0_f32)
-                    .stroke(egui::Stroke::new(1.0_f32, t.border))
-                    .inner_margin(Margin::symmetric(8.0, 6.0))
-                    .show(ui, |ui| {
-                        ui.set_width((total_avail - 16.0).max(60.0));
-                        egui::ScrollArea::horizontal()
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 6.0;
+        // 1. Compact Horizontal Category Filter Chip Bar
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(6.0, 4.0);
 
-                                    // "All Categories" Chip
-                                    let is_all_sel = state.selected_category.is_none();
-                                    let all_bg = if is_all_sel { t.accent.gamma_multiply(0.25) } else { t.bg_surface };
-                                    let all_stroke = if is_all_sel { egui::Stroke::new(1.5_f32, t.accent) } else { egui::Stroke::new(1.0_f32, t.border) };
+            // "All Categories" Chip
+            let is_all_sel = state.selected_category.is_none();
+            let all_bg = if is_all_sel { t.accent.gamma_multiply(0.25) } else { t.bg_surface };
+            let all_stroke = if is_all_sel { egui::Stroke::new(1.5_f32, t.accent) } else { egui::Stroke::new(1.0_f32, t.border) };
 
-                                    let all_chip = egui::Button::new(
-                                        RichText::new(format!("◆ All ({})", format_size(total_tree_size)))
-                                            .size(11.0)
-                                            .strong()
-                                            .color(if is_all_sel { t.accent } else { t.text }),
-                                    )
-                                    .fill(all_bg)
-                                    .stroke(all_stroke)
-                                    .rounding(4.0_f32);
+            let all_chip = egui::Button::new(
+                RichText::new(format!("◆ All ({})", format_size(total_tree_size)))
+                    .size(11.0)
+                    .strong()
+                    .color(if is_all_sel { t.accent } else { t.text }),
+            )
+            .fill(all_bg)
+            .stroke(all_stroke)
+            .rounding(4.0_f32);
 
                                     if ui.add(all_chip).on_hover_text("Show all file types").clicked() {
                                         state.selected_category = None;
@@ -139,52 +125,50 @@ pub fn render_categories_view(
                                             }
                                         }
                                     }
-                                });
-                            });
-                    });
+        });
 
-                ui.add_space(8.0);
+        ui.add_space(4.0);
 
-                // 2. Toolbar & Search Bar
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Filter Extension:").size(11.0).color(t.text_muted));
-                    ui.add_sized(
-                        [180.0, 24.0],
-                        egui::TextEdit::singleline(&mut state.search_ext).hint_text("e.g. rs, mp4, tar..."),
-                    );
+        // 2. Toolbar & Search Bar
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Filter Extension:").size(11.0).color(t.text_muted));
+            ui.add_sized(
+                [180.0, 24.0],
+                egui::TextEdit::singleline(&mut state.search_ext).hint_text("e.g. rs, mp4, tar..."),
+            );
 
-                    if !state.search_ext.is_empty() && ui.small_button("✕").clicked() {
-                        state.search_ext.clear();
-                    }
+            if !state.search_ext.is_empty() && ui.small_button("✕").clicked() {
+                state.search_ext.clear();
+            }
 
-                    if let Some(cat) = state.selected_category {
-                        ui.label(RichText::new(format!("Filtering by: {}", cat.display_name())).size(11.0).color(cat.color()));
-                        if ui.small_button("Clear Filter").clicked() {
-                            state.selected_category = None;
-                        }
-                    }
+            if let Some(cat) = state.selected_category {
+                ui.label(RichText::new(format!("Filtering by: {}", cat.display_name())).size(11.0).color(cat.color()));
+                if ui.small_button("Clear Filter").clicked() {
+                    state.selected_category = None;
+                }
+            }
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let sort_btn = ui.selectable_label(
-                            state.sort_by_size,
-                            if state.sort_by_size { "Sort: Size ↓" } else { "Sort: File Count ↓" },
-                        );
-                        if sort_btn.clicked() {
-                            state.sort_by_size = !state.sort_by_size;
-                        }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let sort_btn = ui.selectable_label(
+                    state.sort_by_size,
+                    if state.sort_by_size { "Sort: Size ↓" } else { "Sort: File Count ↓" },
+                );
+                if sort_btn.clicked() {
+                    state.sort_by_size = !state.sort_by_size;
+                }
 
-                        ui.label(
-                            RichText::new(format!("Showing {} extensions", filtered_exts.len()))
-                                .size(11.0)
-                                .color(t.text_muted),
-                        );
-                    });
-                });
+                ui.label(
+                    RichText::new(format!("Showing {} extensions", filtered_exts.len()))
+                        .size(11.0)
+                        .color(t.text_muted),
+                );
+            });
+        });
 
-                ui.add_space(6.0);
+        ui.separator();
 
-                // 3. Dense Extension Table using TableBuilder
-                let total_rows = filtered_exts.len();
+        // 3. Dense Extension Table using TableBuilder (fills remaining viewport height)
+        let total_rows = filtered_exts.len();
 
                 TableBuilder::new(ui)
                     .striped(true)
@@ -276,9 +260,6 @@ pub fn render_categories_view(
                                 });
                             }
                         });
-                    });
-
-                ui.add_space(16.0);
-            });
+                });
         });
 }

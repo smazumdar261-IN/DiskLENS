@@ -115,7 +115,7 @@ fn render_responsive_chart_card(
             ui.separator();
             ui.add_space(6.0);
 
-            let chart_h = 175.0_f32;
+            let chart_h = 220.0_f32;
             let (chart_rect, response) = ui.allocate_exact_size(Vec2::new(inner_w, chart_h), Sense::hover());
             ui.painter().rect_filled(chart_rect, 4.0_f32, t.bg_surface);
             ui.painter().rect_stroke(chart_rect, 4.0_f32, Stroke::new(1.0_f32, t.border));
@@ -165,14 +165,8 @@ fn render_responsive_chart_card(
                 }
             }
 
-            // Decimate X-axis date labels to strictly prevent text overlaps across any window width!
-            // Each date label needs at least 70px to avoid collisions.
-            let max_visible_labels = (usable_w / 70.0).floor().max(2.0) as usize;
-            let stride = if point_count > max_visible_labels {
-                ((point_count - 1) as f32 / (max_visible_labels - 1) as f32).ceil().max(1.0) as usize
-            } else {
-                1
-            };
+            // X-Axis Decimation: step = (total_points / 5).max(1) to strictly eliminate text collisions
+            let step = (point_count / 5).max(1);
 
             let mouse_pos = response.hover_pos();
             let mut hovered_item_info = None;
@@ -190,8 +184,8 @@ fn render_responsive_chart_card(
                         hovered_item_info = Some((item.date.clone(), item.total_size_formatted.clone(), *pt));
                     }
 
-                    // Decimated date labeling: render if aligned with stride or last point
-                    let should_render_label = idx % stride == 0 || idx == point_count - 1;
+                    // Decimated date labeling: render if aligned with step or last point
+                    let should_render_label = idx % step == 0 || idx == point_count - 1;
                     if should_render_label {
                         let date_str = item.date.split_whitespace().next().unwrap_or("");
                         ui.painter().text(

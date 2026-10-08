@@ -115,13 +115,13 @@ pub fn render_treemap_view(
 
     ui.add_space(6.0);
 
-    // 2. Treemap Canvas + Right Inspector Split
+    // 2. Treemap Canvas + Right Inspector Split (Clamped Layout)
     let total_w = ui.available_width();
-    let is_wide = total_w >= 880.0;
-    let spacing = 8.0_f32;
-    let inspector_w = 260.0_f32;
-    let canvas_w = if is_wide { (total_w - inspector_w - spacing).max(300.0) } else { total_w };
-    let canvas_h = (ui.available_height() - 76.0).max(300.0);
+    let is_wide = total_w >= 640.0;
+    let inspector_w = if is_wide { (total_w * 0.32).min(260.0) } else { 0.0 };
+    let spacing = if is_wide { ui.spacing().item_spacing.x } else { 0.0 };
+    let canvas_w = if is_wide { (total_w - inspector_w - spacing).max(100.0) } else { total_w };
+    let canvas_h = (ui.available_height() - 76.0).max(200.0);
 
     let mut clicked_item: Option<TreemapItem> = None;
     let mut right_clicked_item: Option<TreemapItem> = None;
@@ -234,7 +234,7 @@ pub fn render_treemap_view(
                 .stroke(egui::Stroke::new(1.0_f32, t.border))
                 .inner_margin(Margin::same(12.0))
                 .show(ui, |ui| {
-                    ui.set_width(260.0);
+                    ui.set_width(inspector_w);
                     ui.set_height(canvas_h);
 
                     ui.vertical(|ui| {
