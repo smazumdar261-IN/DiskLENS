@@ -1,6 +1,6 @@
 use crate::models::{format_size, AnalysisCache, ExtensionSummary, FileCategory};
 use crate::theme::AppTheme;
-use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use eframe::egui::{self, Margin, Rect, RichText, Sense, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 
 pub struct CategoriesViewState {
@@ -201,7 +201,7 @@ pub fn render_categories_view(
                             ui.label(RichText::new("Space Share").strong().color(t.text_muted));
                         });
                     })
-                    .body(|mut body| {
+                    .body(|body| {
                         body.rows(28.0, total_rows, |mut row| {
                             let idx = row.index();
                             if let Some(ext) = filtered_exts.get(idx) {

@@ -2,7 +2,7 @@ use crate::actions::FileActions;
 use crate::models::{format_size, FileCategory, LargeFileInfo};
 use crate::theme::{truncate_middle, AppTheme};
 use crate::ui::modals::{ConfirmAction, ModalManager};
-use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use eframe::egui::{self, Margin, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 
@@ -160,159 +160,167 @@ pub fn render_largest_files_view(
 
     let total_rows = filtered_files.len();
 
-    TableBuilder::new(ui)
-        .striped(true)
-        .resizable(true)
-        .vscroll(true)
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::initial(36.0).at_least(30.0))
-        .column(Column::remainder().at_least(140.0).clip(true))
-        .column(Column::initial(90.0).at_least(70.0).resizable(true))
-        .column(Column::initial(90.0).at_least(70.0).resizable(true))
-        .column(Column::initial(95.0).at_least(70.0).resizable(true))
-        .column(Column::initial(115.0).at_least(80.0).resizable(true))
-        .column(Column::initial(130.0).at_least(90.0).resizable(true))
-        .header(24.0, |mut header| {
-            header.col(|ui| {
-                ui.label(RichText::new("#").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Item & Location").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Apparent Size").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Allocated Disk").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Category").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Assessment").strong().color(t.text_muted));
-            });
-            header.col(|ui| {
-                ui.label(RichText::new("Actions").strong().color(t.text_muted));
-            });
-        })
-        .body(|mut body| {
-            body.rows(28.0, total_rows, |mut row| {
-                let idx = row.index();
-                if let Some(file) = filtered_files.get(idx) {
-                    let full_p = file.path.display().to_string();
+    let bottom_bar_height = 28.0;
+    let available_height = (ui.available_height() - bottom_bar_height).max(100.0);
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 8.0;
+    let avail_w = (ui.available_width() - scrollbar_margin).max(100.0);
 
-                    // Col 1: Rank (#01, #02, ...)
-                    row.col(|ui| {
-                        let rank_col = if idx < 3 { t.accent } else { t.text_muted };
-                        ui.label(RichText::new(format!("{:02}", idx + 1)).size(11.0).monospace().color(rank_col));
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .max_height(available_height)
+        .max_width(avail_w)
+        .show(ui, |ui| {
+            TableBuilder::new(ui)
+                .striped(true)
+                .resizable(false)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::exact(32.0))             // Rank
+                .column(Column::remainder().clip(true))  // Item & Location
+                .column(Column::exact(90.0))             // Apparent Size
+                .column(Column::exact(90.0))             // Allocated Disk
+                .column(Column::exact(90.0))             // Category
+                .column(Column::exact(95.0))             // Assessment
+                .column(Column::exact(85.0))             // Actions
+                .header(24.0, |mut header| {
+                    header.col(|ui| {
+                        ui.label(RichText::new("#").strong().color(t.text_muted));
                     });
+                    header.col(|ui| {
+                        ui.label(RichText::new("Item & Location").strong().color(t.text_muted));
+                    });
+                    header.col(|ui| {
+                        ui.label(RichText::new("Apparent Size").strong().color(t.text_muted));
+                    });
+                    header.col(|ui| {
+                        ui.label(RichText::new("Allocated Disk").strong().color(t.text_muted));
+                    });
+                    header.col(|ui| {
+                        ui.label(RichText::new("Category").strong().color(t.text_muted));
+                    });
+                    header.col(|ui| {
+                        ui.label(RichText::new("Assessment").strong().color(t.text_muted));
+                    });
+                    header.col(|ui| {
+                        ui.label(RichText::new("Actions").strong().color(t.text_muted));
+                    });
+                })
+                .body(|body| {
+                    body.rows(28.0, total_rows, |mut row| {
+                        let idx = row.index();
+                        if let Some(file) = filtered_files.get(idx) {
+                            let full_p = file.path.display().to_string();
 
-                    // Col 2: Name & truncated parent folder
-                    row.col(|ui| {
-                        let parent_str = file.path.parent().map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string()).unwrap_or_default();
-                        let display_name = truncate_middle(&file.name, 34);
-                        let name_text = if !parent_str.is_empty() {
-                            format!("{} {}  ({})", file.category.icon(), display_name, parent_str)
-                        } else {
-                            format!("{} {}", file.category.icon(), display_name)
-                        };
-
-                        let item_resp = ui.add(
-                            egui::Label::new(RichText::new(name_text).size(11.5).color(t.text))
-                                .truncate(),
-                        );
-                        if item_resp.double_clicked() {
-                            let _ = FileActions::open_file(&file.path);
-                        }
-                        item_resp.on_hover_ui(|ui| {
-                            ui.label(RichText::new(&file.name).strong().color(t.text));
-                            ui.label(RichText::new(&full_p).size(10.5).monospace().color(t.text_muted));
-                            ui.separator();
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new("Apparent Size:").size(11.0).color(t.text_muted));
-                                ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().strong().color(t.text));
-                                ui.label(RichText::new("Allocated:").size(11.0).color(t.text_muted));
-                                ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().strong().color(t.cyan));
+                            // Col 1: Rank (#01, #02, ...)
+                            row.col(|ui| {
+                                let rank_col = if idx < 3 { t.accent } else { t.text_muted };
+                                ui.label(RichText::new(format!("{:02}", idx + 1)).size(11.0).monospace().color(rank_col));
                             });
-                            if file.nlink > 1 {
-                                ui.label(RichText::new(format!("🔗 Inode hardlinks count: {}", file.nlink)).size(10.5).color(t.purple));
-                            }
-                            ui.label(RichText::new(format!("Assessment: {}", &file.risk_note)).size(11.0).color(t.accent));
-                        });
+
+                            // Col 2: Name & truncated parent folder
+                            row.col(|ui| {
+                                let parent_str = file.path.parent().map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string()).unwrap_or_default();
+                                let display_name = truncate_middle(&file.name, 34);
+                                let name_text = if !parent_str.is_empty() {
+                                    format!("{} {}  ({})", file.category.icon(), display_name, parent_str)
+                                } else {
+                                    format!("{} {}", file.category.icon(), display_name)
+                                };
+
+                                let item_resp = ui.add(
+                                    egui::Label::new(RichText::new(name_text).size(11.5).color(t.text))
+                                        .truncate(),
+                                );
+                                if item_resp.double_clicked() {
+                                    let _ = FileActions::open_file(&file.path);
+                                }
+                                item_resp.on_hover_ui(|ui| {
+                                    ui.label(RichText::new(&file.name).strong().color(t.text));
+                                    ui.label(RichText::new(&full_p).size(10.5).monospace().color(t.text_muted));
+                                    ui.separator();
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new("Apparent Size:").size(11.0).color(t.text_muted));
+                                        ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().strong().color(t.text));
+                                        ui.label(RichText::new("Allocated:").size(11.0).color(t.text_muted));
+                                        ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().strong().color(t.cyan));
+                                    });
+                                    if file.nlink > 1 {
+                                        ui.label(RichText::new(format!("🔗 Inode hardlinks count: {}", file.nlink)).size(10.5).color(t.purple));
+                                    }
+                                    ui.label(RichText::new(format!("Assessment: {}", &file.risk_note)).size(11.0).color(t.accent));
+                                });
+                            });
+
+                            // Col 3: Apparent Size (Monospace)
+                            row.col(|ui| {
+                                ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().color(t.text));
+                            });
+
+                            // Col 4: Allocated Disk (Monospace)
+                            row.col(|ui| {
+                                ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().color(t.cyan));
+                            });
+
+                            // Col 5: Category Pill
+                            row.col(|ui| {
+                                let cat_pill = egui::Frame::none()
+                                    .fill(file.category.color().gamma_multiply(0.18))
+                                    .rounding(3.0_f32)
+                                    .inner_margin(Margin::symmetric(6.0, 2.0));
+                                cat_pill.show(ui, |ui| {
+                                    ui.label(RichText::new(file.category.display_name()).size(10.0).color(file.category.color()));
+                                });
+                            });
+
+                            // Col 6: Assessment Pill
+                            row.col(|ui| {
+                                let (badge_text, badge_col, badge_bg) = if file.nlink > 1 {
+                                    ("🔗 Hardlink", t.purple, t.purple.gamma_multiply(0.18))
+                                } else if file.is_review_needed {
+                                    ("⚠ Review Needed", t.warning, t.warning.gamma_multiply(0.18))
+                                } else if file.is_cache_or_temp {
+                                    ("⚡ Safe Cache", t.accent, t.accent.gamma_multiply(0.18))
+                                } else {
+                                    ("📄 User File", t.text_muted, t.bg_surface)
+                                };
+
+                                let pill = egui::Frame::none()
+                                    .fill(badge_bg)
+                                    .rounding(3.0_f32)
+                                    .inner_margin(Margin::symmetric(6.0, 2.0));
+                                pill.show(ui, |ui| {
+                                    ui.label(RichText::new(badge_text).size(10.0).color(badge_col));
+                                });
+                            });
+
+                            // Col 7: Actions Toolbar
+                            row.col(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 2.0;
+
+                                    if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
+                                        let _ = FileActions::open_in_file_manager(&file.path);
+                                    }
+
+                                    if ui.small_button("📋").on_hover_text("Copy path").clicked() {
+                                        ui.output_mut(|o| o.copied_text = full_p.clone());
+                                        modals.show_toast("Copied path".to_string(), false);
+                                    }
+
+                                    if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
+                                        modals.pending_confirm = Some(ConfirmAction::MoveToTrash(file.path.clone(), file.size));
+                                    }
+
+                                    if ui.small_button("🔥").on_hover_text("Shred / Permanently delete").clicked() {
+                                        modals.pending_confirm = Some(ConfirmAction::PermanentDelete(file.path.clone(), file.size));
+                                    }
+
+                                    ui.add_space(8.0);
+                                });
+                            });
+                        }
                     });
-
-                    // Col 3: Apparent Size (Monospace)
-                    row.col(|ui| {
-                        ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().color(t.text));
-                    });
-
-                    // Col 4: Allocated Disk (Monospace)
-                    row.col(|ui| {
-                        ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().color(t.cyan));
-                    });
-
-                    // Col 5: Category Pill
-                    row.col(|ui| {
-                        let cat_pill = egui::Frame::none()
-                            .fill(file.category.color().gamma_multiply(0.18))
-                            .rounding(3.0_f32)
-                            .inner_margin(Margin::symmetric(6.0, 2.0));
-                        cat_pill.show(ui, |ui| {
-                            ui.label(RichText::new(file.category.display_name()).size(10.0).color(file.category.color()));
-                        });
-                    });
-
-                    // Col 6: Assessment Pill
-                    row.col(|ui| {
-                        let (badge_text, badge_col, badge_bg) = if file.nlink > 1 {
-                            ("🔗 Hardlink", t.purple, t.purple.gamma_multiply(0.18))
-                        } else if file.is_review_needed {
-                            ("⚠ Review Needed", t.warning, t.warning.gamma_multiply(0.18))
-                        } else if file.is_cache_or_temp {
-                            ("⚡ Safe Cache", t.accent, t.accent.gamma_multiply(0.18))
-                        } else {
-                            ("📄 User File", t.text_muted, t.bg_surface)
-                        };
-
-                        let pill = egui::Frame::none()
-                            .fill(badge_bg)
-                            .rounding(3.0_f32)
-                            .inner_margin(Margin::symmetric(6.0, 2.0));
-                        pill.show(ui, |ui| {
-                            ui.label(RichText::new(badge_text).size(10.0).color(badge_col));
-                        });
-                    });
-
-                    // Col 7: Actions Toolbar
-                    row.col(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 2.0;
-
-                            if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
-                                let _ = FileActions::open_in_file_manager(&file.path);
-                            }
-
-                            if ui.small_button("📟").on_hover_text("Open terminal here").clicked() {
-                                let _ = FileActions::open_terminal(&file.path);
-                            }
-
-                            if ui.small_button("📋").on_hover_text("Copy path").clicked() {
-                                ui.output_mut(|o| o.copied_text = full_p.clone());
-                                modals.show_toast("Copied path".to_string(), false);
-                            }
-
-                            if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
-                                modals.pending_confirm = Some(ConfirmAction::MoveToTrash(file.path.clone(), file.size));
-                            }
-
-                            if ui.small_button("🔥").on_hover_text("Shred / Permanently delete").clicked() {
-                                modals.pending_confirm = Some(ConfirmAction::PermanentDelete(file.path.clone(), file.size));
-                            }
-                        });
-                    });
-                }
-            });
+                });
         });
 
-    ui.add_space(14.0);
+    ui.add_space(6.0);
 }

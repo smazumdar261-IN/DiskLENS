@@ -61,7 +61,7 @@ impl AppTheme {
                 bg_input: Color32::from_rgb(12, 14, 20),      // Darker Input & Inset wells (#0C0E14)
                 border: Color32::from_rgb(46, 54, 76),        // Crisp border (#2E364C)
                 border_subtle: Color32::from_rgb(36, 42, 60), // Subtle inner border (#242A3C)
-                text: Color32::from_rgb(235, 240, 248),       // Primary Text: Crisp Off-White (WCAG AA)
+                text: Color32::from_rgb(240, 244, 250),       // Primary Text: Crisp Off-White (WCAG AA)
                 text_secondary: Color32::from_rgb(185, 196, 212), // Readable secondary slate
                 text_muted: Color32::from_rgb(160, 174, 192), // Clean readable slate gray (#A0AEC0)
                 accent: Color32::from_rgb(79, 110, 247),      // Vibrant Blue Accent (#4F6EF7)
@@ -104,8 +104,8 @@ impl AppTheme {
 
         // 2. High-Contrast Typography (WCAG AA Compliant)
         visuals.widgets.noninteractive.fg_stroke = Stroke::new(
-            1.0,
-            Color32::from_rgb(235, 240, 248), // Primary Text: Crisp Off-White (not dull gray)
+            1.0_f32,
+            Color32::from_rgb(240, 244, 250), // Primary Text: Crisp Off-White (not dull gray)
         );
         visuals.widgets.noninteractive.bg_fill = Color32::from_rgb(24, 27, 38);
         visuals.widgets.noninteractive.rounding = Rounding::same(6.0_f32);
@@ -116,24 +116,24 @@ impl AppTheme {
 
         // 4. Interactive Widget Colors (Buttons, Chips, Tabs)
         visuals.widgets.inactive.bg_fill = Color32::from_rgb(33, 38, 54);
-        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(220, 226, 235));
+        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(220, 226, 235));
         visuals.widgets.inactive.rounding = Rounding::same(6.0_f32);
         visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
 
         visuals.widgets.hovered.bg_fill = Color32::from_rgb(46, 54, 76);
-        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_rgb(255, 255, 255));
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(255, 255, 255));
         visuals.widgets.hovered.rounding = Rounding::same(6.0_f32);
         visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
 
         visuals.widgets.active.bg_fill = Color32::from_rgb(79, 110, 247); // Vibrant Blue Accent
-        visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
         visuals.widgets.active.rounding = Rounding::same(6.0_f32);
         visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
 
-        // 5. Distinct Table Stripes
-        visuals.faint_bg_color = Color32::from_rgba_premultiplied(255, 255, 255, 7); // Subtle zebra stripe
+        // 5. Distinct Table Stripes (NEVER SOLID WHITE)
+        visuals.faint_bg_color = Color32::from_rgba_premultiplied(255, 255, 255, 8); // Subtle zebra stripe (3% alpha)
 
-        visuals.override_text_color = Some(Color32::from_rgb(235, 240, 248));
+        visuals.override_text_color = Some(Color32::from_rgb(240, 244, 250));
         visuals.selection.bg_fill = Color32::from_rgba_premultiplied(79, 110, 247, 80);
         visuals.selection.stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
         visuals.window_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
@@ -155,7 +155,7 @@ impl AppTheme {
         visuals.override_text_color = Some(t.text);
         visuals.window_fill = t.bg_base;
         visuals.panel_fill = t.bg_surface;
-        visuals.faint_bg_color = t.bg_elevated;
+        visuals.faint_bg_color = Color32::from_rgb(241, 245, 249);
         visuals.extreme_bg_color = t.bg_container;
 
         visuals.widgets.noninteractive.bg_fill = t.bg_elevated;

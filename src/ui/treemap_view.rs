@@ -42,7 +42,7 @@ pub fn render_treemap_view(
 
     let current_node = root.find_node_by_path(&state.current_path).unwrap_or(root);
 
-    // 1. Top Breadcrumb & Control Bar (Matches TreemapView.tsx)
+    // 1. Sticky Navigation Bar & Controls
     egui::Frame::none()
         .fill(t.bg_elevated)
         .rounding(6.0_f32)
@@ -50,16 +50,37 @@ pub fn render_treemap_view(
         .inner_margin(Margin::symmetric(10.0, 6.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
+                // Back to Overview button
+                if ui.button(RichText::new("◀ Back to Overview").size(11.5).strong().color(t.accent)).on_hover_text("Return to Overview dashboard").clicked() {
+                    *active_tab = ActiveTab::Overview;
+                }
+
+                ui.separator();
+
+                // Up One Level button
+                let can_go_up = state.current_path != root.path && state.current_path.parent().is_some();
+                if ui.add_enabled(
+                    can_go_up,
+                    egui::Button::new(RichText::new("⬆ Up One Level").size(11.5))
+                ).on_hover_text("Navigate to parent directory").clicked() {
+                    if let Some(parent) = state.current_path.parent() {
+                        if parent.starts_with(&root.path) || parent == root.path {
+                            state.current_path = parent.to_path_buf();
+                            state.selected_item = None;
+                        }
+                    }
+                }
+
                 // Root button
                 if ui.add(
-                    egui::Button::new(RichText::new("🏠 root").size(11.5).strong().color(t.accent))
+                    egui::Button::new(RichText::new("🏠 Root").size(11.5).strong().color(t.accent))
                         .fill(Color32::TRANSPARENT)
                 ).on_hover_text("Return to scan root").clicked() {
                     state.current_path = root.path.clone();
                     state.selected_item = None;
                 }
 
-                ui.label(RichText::new(">").size(11.0).color(t.text_muted));
+                ui.separator();
 
                 // Breadcrumb path components
                 let rel_path = state
@@ -88,17 +109,8 @@ pub fn render_treemap_view(
                     state.selected_item = None;
                 }
 
-                // Right controls: Depth slider & Up button
+                // Right controls: Depth slider
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("↰ Up").on_hover_text("Go to parent directory").clicked() {
-                        if let Some(parent) = state.current_path.parent() {
-                            if parent.starts_with(&root.path) || parent == root.path {
-                                state.current_path = parent.to_path_buf();
-                                state.selected_item = None;
-                            }
-                        }
-                    }
-
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("Depth:").size(11.0).color(t.text_muted));
                         if ui.small_button("−").clicked() && state.max_depth > 1 {
@@ -118,8 +130,8 @@ pub fn render_treemap_view(
     // 2. Treemap Canvas + Right Inspector Split (Clamped Layout)
     let total_w = ui.available_width();
     let is_wide = total_w >= 640.0;
-    let inspector_w = if is_wide { (total_w * 0.32).min(260.0) } else { 0.0 };
-    let spacing = if is_wide { ui.spacing().item_spacing.x } else { 0.0 };
+    let inspector_w = if is_wide { (total_w * 0.30).min(260.0) } else { 0.0 };
+    let spacing = if is_wide { 8.0 } else { 0.0 };
     let canvas_w = if is_wide { (total_w - inspector_w - spacing).max(100.0) } else { total_w };
     let canvas_h = (ui.available_height() - 76.0).max(200.0);
 
@@ -224,8 +236,6 @@ pub fn render_treemap_view(
 
         // Right Inspector Panel (Matches TreemapView.tsx)
         if is_wide {
-            ui.add_space(8.0);
-
             let inspect_clone = state.selected_item.clone().or_else(|| state.hovered_item.clone());
 
             egui::Frame::none()

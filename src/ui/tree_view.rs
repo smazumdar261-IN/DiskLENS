@@ -1,9 +1,8 @@
 use crate::actions::FileActions;
-use crate::app::ActiveTab;
 use crate::models::{format_size, FileCategory, FileNode, SortColumn, SortOrder};
 use crate::theme::AppTheme;
 use crate::ui::modals::{ConfirmAction, ModalManager};
-use crate::ui::treemap_view::{render_treemap_view, TreemapViewState};
+use crate::ui::treemap_view::TreemapViewState;
 use eframe::egui::{self, Margin, Rect, RichText, Sense, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
@@ -57,7 +56,7 @@ pub fn render_tree_view(
     state: &mut TreeViewState,
     modals: &mut ModalManager,
     dark_mode: bool,
-    on_rescan: &mut dyn FnMut(PathBuf),
+    _on_rescan: &mut dyn FnMut(PathBuf),
 ) {
     let t = AppTheme::tokens(dark_mode);
 
@@ -67,7 +66,7 @@ pub fn render_tree_view(
 
     let current_node = root.find_node_by_path(&state.current_path).unwrap_or(root);
 
-    // 1. Mode Switcher & Breadcrumbs Bar
+    // 1. Breadcrumbs Bar
     egui::Frame::none()
         .fill(t.bg_elevated)
         .rounding(6.0_f32)
@@ -75,25 +74,12 @@ pub fn render_tree_view(
         .inner_margin(Margin::symmetric(10.0, 6.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                // Two-mode toggle buttons
-                let is_tree = state.mode == ExplorerMode::Tree;
-                if ui.selectable_label(is_tree, RichText::new("📁 File List & Hogs").strong()).clicked() {
-                    state.mode = ExplorerMode::Tree;
-                }
-                let is_treemap = state.mode == ExplorerMode::Treemap;
-                if ui.selectable_label(is_treemap, RichText::new("⊞ Treemap Canvas").strong()).clicked() {
-                    state.mode = ExplorerMode::Treemap;
-                }
-
-                ui.separator();
-
                 let parent_opt = state.current_path.parent().map(|p| p.to_path_buf());
                 if ui.button("↰ Up").on_hover_text("Go to parent directory").clicked() {
                     if let Some(parent) = parent_opt {
                         if parent.starts_with(&root.path) || parent == root.path {
                             state.current_path = parent.clone();
                             state.selected_node = None;
-                            state.treemap_state.current_path = parent;
                         }
                     }
                 }
@@ -101,7 +87,6 @@ pub fn render_tree_view(
                 if ui.button("🏠 Root").on_hover_text("Return to scan root").clicked() {
                     state.current_path = root.path.clone();
                     state.selected_node = None;
-                    state.treemap_state.current_path = root.path.clone();
                 }
 
                 ui.label(RichText::new("|").size(11.0).color(t.border));
@@ -130,7 +115,6 @@ pub fn render_tree_view(
                 if let Some(p) = clicked_crumb {
                     state.current_path = p.clone();
                     state.selected_node = None;
-                    state.treemap_state.current_path = p;
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -154,16 +138,7 @@ pub fn render_tree_view(
 
     ui.add_space(4.0);
 
-    // MODE 2: Treemap (Clamped Canvas)
-    if state.mode == ExplorerMode::Treemap {
-        state.treemap_state.current_path = state.current_path.clone();
-        let mut tab_dummy = ActiveTab::DirectoryTree;
-        render_treemap_view(ui, root, &mut state.treemap_state, &mut tab_dummy, modals, dark_mode, on_rescan);
-        state.current_path = state.treemap_state.current_path.clone();
-        return;
-    }
-
-    // MODE 1: Tree & Space Hogs (TableBuilder)
+    // Tree & Space Hogs Table View
 
     // Interactive category distribution chips bar (top row)
     let mut cat_sizes = [0u64; FileCategory::ALL.len()];

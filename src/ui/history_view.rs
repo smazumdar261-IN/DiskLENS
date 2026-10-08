@@ -359,7 +359,7 @@ fn render_snapshot_history_table(
                             ui.label(RichText::new("Delta").strong().color(t.text_muted));
                         });
                     })
-                    .body(|mut body| {
+                    .body(|body| {
                         body.rows(26.0, history_items.len(), |mut row| {
                             let idx = row.index();
                             if let Some(item) = history_items.get(idx) {

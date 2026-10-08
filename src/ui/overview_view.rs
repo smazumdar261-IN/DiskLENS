@@ -451,7 +451,7 @@ fn render_bento_category_panel(
                     .column(Column::remainder().at_least(110.0).clip(true))
                     .column(Column::initial(80.0).at_least(60.0))
                     .column(Column::initial(115.0).at_least(85.0))
-                    .body(|mut body| {
+                    .body(|body| {
                         body.rows(26.0, valid_cats.len(), |mut row| {
                             let idx = row.index();
                             let cat = valid_cats[idx];
@@ -499,8 +499,9 @@ fn render_bento_hogs_panel(
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
-            let inner_w = width - 24.0;
+            let inner_w = (width - 24.0).max(100.0);
             ui.set_width(inner_w);
+            ui.set_max_width(inner_w);
 
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -521,11 +522,11 @@ fn render_bento_hogs_panel(
                     TableBuilder::new(ui)
                         .striped(true)
                         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                        .column(Column::initial(26.0))
-                        .column(Column::remainder().at_least(110.0).clip(true))
-                        .column(Column::initial(75.0).at_least(60.0))
-                        .column(Column::initial(115.0).at_least(85.0))
-                        .body(|mut body| {
+                        .column(Column::exact(26.0))
+                        .column(Column::remainder().clip(true))
+                        .column(Column::exact(70.0))
+                        .column(Column::exact(95.0))
+                        .body(|body| {
                             body.rows(26.0, top_hogs.len(), |mut row| {
                                 let idx = row.index();
                                 let hog = top_hogs[idx];
@@ -538,7 +539,7 @@ fn render_bento_hogs_panel(
 
                                 // Col 2: Name
                                 row.col(|ui| {
-                                    let display_name = truncate_middle(&hog.name, 32);
+                                    let display_name = truncate_middle(&hog.name, 24);
                                     let full_p = hog.path.display().to_string();
                                     let label_resp = ui.add(
                                         egui::Label::new(RichText::new(format!("{} {}", hog.category.icon(), display_name)).size(11.5).color(t.text))

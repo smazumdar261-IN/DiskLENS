@@ -25,7 +25,7 @@ pub fn render_docs_view(ui: &mut Ui, dark_mode: bool) {
                             ui.label(RichText::new("📖").size(28.0).color(t.accent));
                             ui.vertical(|ui| {
                                 ui.label(RichText::new("DiskLens Architecture & User Manual").size(16.0).strong().color(t.text));
-                                ui.label(RichText::new("Native Linux storage analysis, io_uring architecture, deduplication, and safe reclamation guide.").size(11.5).color(t.text_secondary));
+                                ui.add(egui::Label::new(RichText::new("Native Linux storage analysis, io_uring architecture, deduplication, and safe reclamation guide.").size(11.5).color(t.text_secondary)).wrap());
                             });
                         });
                     });
@@ -34,7 +34,11 @@ pub fn render_docs_view(ui: &mut Ui, dark_mode: bool) {
 
                 // 2. 4 Architecture Pillar Cards
                 let is_single_col = content_w < 700.0;
-                let card_w = if is_single_col { content_w } else { ((content_w - 12.0) / 2.0).floor() };
+                let card_inner_w = if is_single_col {
+                    (content_w - 28.0).max(100.0)
+                } else {
+                    (((content_w - 12.0) / 2.0) - 28.0).floor().max(100.0)
+                };
 
                 let pillars = [
                     (
@@ -69,10 +73,10 @@ pub fn render_docs_view(ui: &mut Ui, dark_mode: bool) {
                                 .stroke(egui::Stroke::new(1.0_f32, t.border))
                                 .inner_margin(Margin::same(14.0))
                                 .show(ui, |ui| {
-                                    ui.set_width(card_w - 28.0);
+                                    ui.set_width(card_inner_w);
                                     ui.label(RichText::new(*title).size(13.0).strong().color(*color));
                                     ui.add_space(6.0);
-                                    ui.label(RichText::new(*text).size(11.5).color(t.text_secondary));
+                                    ui.add(egui::Label::new(RichText::new(*text).size(11.5).color(t.text_secondary)).wrap());
                                 });
                         }
                     });
@@ -110,17 +114,18 @@ pub fn render_docs_view(ui: &mut Ui, dark_mode: bool) {
                         ];
 
                         let s_cols = if content_w > 720.0 { 2 } else { 1 };
-                        for chunk in shortcuts.chunks(s_cols) {
-                            ui.horizontal(|ui| {
-                                for (key, desc) in chunk {
-                                    ui.horizontal(|ui| {
+                        egui::Grid::new("shortcuts_grid")
+                            .num_columns(if s_cols == 2 { 4 } else { 2 })
+                            .spacing([14.0, 6.0])
+                            .show(ui, |ui| {
+                                for chunk in shortcuts.chunks(s_cols) {
+                                    for (key, desc) in chunk {
                                         ui.label(RichText::new(format!("[ {} ]", key)).size(10.5).monospace().strong().color(t.accent));
                                         ui.label(RichText::new(*desc).size(11.0).color(t.text));
-                                    });
+                                    }
+                                    ui.end_row();
                                 }
                             });
-                            ui.add_space(4.0);
-                        }
                     });
 
                 ui.add_space(20.0);

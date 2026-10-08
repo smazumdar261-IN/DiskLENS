@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, Margin, RichText, Ui, Vec2};
+use eframe::egui::{self, Color32, Margin, RichText, Ui};
 use crate::theme::{AppTheme, ThemeTokens};
 use egui_extras::{Column, TableBuilder};
 
@@ -118,7 +118,7 @@ fn check_table_builder_api(ui: &mut Ui) {
                 ui.label("Col 2");
             });
         })
-        .body(|mut body| {
+        .body(|body| {
             body.rows(26.0, 10, |mut row| {
                 row.set_selected(true);
                 let _resp = row.response();
