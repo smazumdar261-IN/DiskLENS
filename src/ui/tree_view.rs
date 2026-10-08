@@ -481,8 +481,7 @@ pub fn render_tree_view(
         });
 
     if let Some(target) = navigate_to {
-        state.current_path = target.clone();
-        state.selected_node = None;
+        state.navigate_to(target.clone());
         state.treemap_state.current_path = target;
     }
 

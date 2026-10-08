@@ -312,7 +312,8 @@ impl DiskLensApp {
                 self.navigate_to(tab);
             }
             OverviewAction::NavigateToPath(tab, path) => {
-                self.tree_state.current_path = path.clone();
+                self.tree_state.navigate_to(path.clone());
+                self.overview_state.navigate_to(path.clone());
                 self.treemap_state.current_path = path;
                 self.navigate_to(tab);
             }
@@ -466,6 +467,8 @@ impl DiskLensApp {
                     );
                     self.modals.log("INFO", &format!("Scan complete: {} files, {} dirs in {:.2}s", root.file_count, root.dir_count, elapsed));
                     self.tree_state.current_path = root.path.clone();
+                    self.tree_state.history = vec![root.path.clone()];
+                    self.tree_state.history_index = 0;
                     self.treemap_state.current_path = root.path.clone();
                     self.overview_state.current_path = root.path.clone();
                     self.overview_state.history = vec![root.path.clone()];

@@ -82,9 +82,8 @@ pub fn render_side_nav(
                         &[
                             (ActiveTab::Storage, "🏠", "Storage Home", "", None),
                             (ActiveTab::Overview, "📊", "Overview", "1", None),
-                            (ActiveTab::DirectoryTree, "🔍", "Explorer", "2", if hogs_count > 0 { Some(format!("{}", hogs_count.min(99))) } else { None }),
-                            (ActiveTab::Duplicates, "📋", "Duplicates", "3", None),
-                            (ActiveTab::SafeTrash, "🗑", "Safe Trash", "C", None),
+                            (ActiveTab::Duplicates, "📋", "Duplicates", "2", None),
+                            (ActiveTab::SafeTrash, "🗑", "Safe Trash", "3", None),
                         ],
                     ),
                     (
@@ -108,8 +107,8 @@ pub fn render_side_nav(
 
                     for (tab, icon, label, shortcut, badge) in items {
                         let is_available = is_view_available(*tab);
-                        let is_selected = if *tab == ActiveTab::DirectoryTree {
-                            matches!(*active_tab, ActiveTab::DirectoryTree | ActiveTab::Treemap | ActiveTab::LargestFiles | ActiveTab::Categories)
+                        let is_selected = if *tab == ActiveTab::Overview {
+                            matches!(*active_tab, ActiveTab::Overview | ActiveTab::DirectoryTree | ActiveTab::Treemap | ActiveTab::LargestFiles | ActiveTab::Categories)
                         } else {
                             *active_tab == *tab
                         };
