@@ -1,0 +1,29 @@
+[package]
+name = "disk-lens"
+version = "0.1.0"
+edition = "2021"
+authors = ["Sayantan"]
+description = "High-performance Disk Analyzer GUI written in Rust"
+
+[dependencies]
+eframe = { version = "0.30", default-features = false, features = ["default", "glow", "x11", "wayland"] }
+egui = "0.30"
+egui_extras = { version = "0.30", features = ["default"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+rfd = "0.15"
+sysinfo = "0.33"
+walkdir = "2.5"
+rayon = "1.10"
+crossbeam-channel = "0.5"
+trash = "5.2"
+open = "5.3"
+chrono = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,0 +1,13 @@
+pub mod actions;
+pub mod app;
+pub mod diagnostics;
+pub mod duplicates;
+pub mod export;
+pub mod history;
+pub mod manage;
+pub mod models;
+pub mod scanner;
+pub mod settings;
+pub mod theme;
+pub mod treemap;
+pub mod ui;
