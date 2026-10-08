@@ -52,24 +52,24 @@ impl AppTheme {
 
     pub fn tokens(dark_mode: bool) -> ThemeTokens {
         if dark_mode {
-            // Tokyo Night Palette
+            // Tokyo Night & Catppuccin Macchiato High Contrast Palette
             ThemeTokens {
-                bg_base: Color32::from_rgb(26, 27, 38),       // #1A1B26
-                bg_surface: Color32::from_rgb(20, 19, 20),    // #141314
-                bg_elevated: Color32::from_rgb(36, 40, 59),   // #24283B
-                bg_container: Color32::from_rgb(32, 31, 32),  // #201F20
-                bg_input: Color32::from_rgb(20, 20, 26),      // #14141A
-                border: Color32::from_rgb(41, 46, 66),        // #292E42
-                border_subtle: Color32::from_rgb(31, 35, 53), // #1F2335
-                text: Color32::from_rgb(192, 202, 245),       // #C0CAF5
-                text_secondary: Color32::from_rgb(154, 165, 206), // #9AA5CE
-                text_muted: Color32::from_rgb(86, 95, 137),   // #565F89
-                accent: Color32::from_rgb(122, 162, 247),     // #7AA2F7
-                success: Color32::from_rgb(158, 206, 106),    // #9ECE6A
-                warning: Color32::from_rgb(224, 175, 104),    // #E0AF68
-                danger: Color32::from_rgb(247, 118, 142),     // #F7768E
-                purple: Color32::from_rgb(187, 154, 247),     // #BB9AF7
-                cyan: Color32::from_rgb(115, 218, 202),       // #73DACA
+                bg_base: Color32::from_rgb(18, 20, 29),       // Deep Charcoal Navy (#12141D)
+                bg_surface: Color32::from_rgb(24, 27, 38),    // Elevated Card Background (#181B26)
+                bg_elevated: Color32::from_rgb(33, 38, 54),   // Interactive buttons/chips (#212636)
+                bg_container: Color32::from_rgb(24, 27, 38),  // Elevated Card Background
+                bg_input: Color32::from_rgb(12, 14, 20),      // Darker Input & Inset wells (#0C0E14)
+                border: Color32::from_rgb(46, 54, 76),        // Crisp border (#2E364C)
+                border_subtle: Color32::from_rgb(36, 42, 60), // Subtle inner border (#242A3C)
+                text: Color32::from_rgb(235, 240, 248),       // Primary Text: Crisp Off-White (WCAG AA)
+                text_secondary: Color32::from_rgb(185, 196, 212), // Readable secondary slate
+                text_muted: Color32::from_rgb(160, 174, 192), // Clean readable slate gray (#A0AEC0)
+                accent: Color32::from_rgb(79, 110, 247),      // Vibrant Blue Accent (#4F6EF7)
+                success: Color32::from_rgb(74, 222, 128),     // Crisp Emerald Green (#4ADE80)
+                warning: Color32::from_rgb(251, 191, 36),     // Amber Warning (#FBBF24)
+                danger: Color32::from_rgb(248, 113, 113),     // Coral Red (#F87171)
+                purple: Color32::from_rgb(192, 132, 252),     // Lavender Purple (#C084FC)
+                cyan: Color32::from_rgb(56, 189, 248),        // Sky Blue / Cyan (#38BDF8)
             }
         } else {
             // Modern Slate Light Palette
@@ -95,39 +95,48 @@ impl AppTheme {
     }
 
     pub fn apply_dark(ctx: &egui::Context) {
-        let t = Self::tokens(true);
         let mut visuals = Visuals::dark();
 
-        visuals.dark_mode = true;
-        visuals.override_text_color = Some(t.text);
-        visuals.window_fill = t.bg_base;
-        visuals.panel_fill = t.bg_surface;
-        visuals.faint_bg_color = t.bg_elevated;
-        visuals.extreme_bg_color = t.bg_input;
+        // 1. Clear Surface Contrast
+        visuals.panel_fill = Color32::from_rgb(18, 20, 29);       // Deep Charcoal Navy
+        visuals.window_fill = Color32::from_rgb(24, 27, 38);      // Elevated Card Background
+        visuals.extreme_bg_color = Color32::from_rgb(12, 14, 20); // Darker Input & Inset wells
 
-        visuals.widgets.noninteractive.bg_fill = t.bg_elevated;
+        // 2. High-Contrast Typography (WCAG AA Compliant)
+        visuals.widgets.noninteractive.fg_stroke = Stroke::new(
+            1.0,
+            Color32::from_rgb(235, 240, 248), // Primary Text: Crisp Off-White (not dull gray)
+        );
+        visuals.widgets.noninteractive.bg_fill = Color32::from_rgb(24, 27, 38);
         visuals.widgets.noninteractive.rounding = Rounding::same(6.0_f32);
-        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, t.border);
-        visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, t.text);
+        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
 
-        visuals.widgets.inactive.bg_fill = t.bg_elevated;
+        // 3. Readable Secondary & Muted Text
+        let _muted_text_color = Color32::from_rgb(160, 174, 192); // Clean readable slate gray
+
+        // 4. Interactive Widget Colors (Buttons, Chips, Tabs)
+        visuals.widgets.inactive.bg_fill = Color32::from_rgb(33, 38, 54);
+        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(220, 226, 235));
         visuals.widgets.inactive.rounding = Rounding::same(6.0_f32);
-        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, t.border);
-        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, t.text);
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
 
-        visuals.widgets.hovered.bg_fill = Color32::from_rgb(62, 69, 101); // #3E4565
+        visuals.widgets.hovered.bg_fill = Color32::from_rgb(46, 54, 76);
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Color32::from_rgb(255, 255, 255));
         visuals.widgets.hovered.rounding = Rounding::same(6.0_f32);
-        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, t.accent);
-        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
+        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
 
-        visuals.widgets.active.bg_fill = Color32::from_rgb(65, 72, 104); // #414868
+        visuals.widgets.active.bg_fill = Color32::from_rgb(79, 110, 247); // Vibrant Blue Accent
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
         visuals.widgets.active.rounding = Rounding::same(6.0_f32);
-        visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, t.accent);
-        visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
+        visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
 
-        visuals.selection.bg_fill = Color32::from_rgba_premultiplied(122, 162, 247, 60);
-        visuals.selection.stroke = Stroke::new(1.0_f32, t.accent);
-        visuals.window_stroke = Stroke::new(1.0_f32, t.border);
+        // 5. Distinct Table Stripes
+        visuals.faint_bg_color = Color32::from_rgba_premultiplied(255, 255, 255, 7); // Subtle zebra stripe
+
+        visuals.override_text_color = Some(Color32::from_rgb(235, 240, 248));
+        visuals.selection.bg_fill = Color32::from_rgba_premultiplied(79, 110, 247, 80);
+        visuals.selection.stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
+        visuals.window_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
 
         let mut style = Style::default();
         style.visuals = visuals;

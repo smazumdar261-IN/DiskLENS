@@ -33,7 +33,8 @@ fn load_app_icon() -> Option<IconData> {
 
 fn main() -> eframe::Result<()> {
     let mut viewport = ViewportBuilder::default()
-        .with_title("DiskLens - Rust Disk Space Analyzer")
+        .with_title("DiskLens - Disk Space Analyzer")
+        .with_app_id("com.disklens.analyzer")
         .with_inner_size(Vec2::new(1280.0, 820.0))
         .with_min_inner_size(Vec2::new(900.0, 600.0))
         .with_active(true);

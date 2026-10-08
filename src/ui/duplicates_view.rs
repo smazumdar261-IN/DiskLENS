@@ -4,8 +4,11 @@ use crate::models::{format_size, FileNode};
 use crate::theme::{truncate_middle, AppTheme};
 use crate::ui::modals::{ConfirmAction, ModalManager};
 use eframe::egui::{self, Color32, Margin, RichText, Ui};
+use crossbeam_channel::Receiver;
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 pub struct DuplicatesViewState {
     pub duplicate_groups: Vec<DuplicateGroup>,
@@ -15,6 +18,9 @@ pub struct DuplicatesViewState {
     pub collapsed_groups: HashSet<String>,
     pub has_analyzed: bool,
     pub is_analyzing: bool,
+    pub scan_rx: Option<Receiver<Vec<DuplicateGroup>>>,
+    pub progress_counter: Option<Arc<AtomicUsize>>,
+    pub total_candidate_files: usize,
 }
 
 impl Default for DuplicatesViewState {
@@ -27,7 +33,41 @@ impl Default for DuplicatesViewState {
             collapsed_groups: HashSet::new(),
             has_analyzed: false,
             is_analyzing: false,
+            scan_rx: None,
+            progress_counter: None,
+            total_candidate_files: 0,
         }
+    }
+}
+
+impl DuplicatesViewState {
+    pub fn trigger_background_scan(&mut self, root: &FileNode) {
+        if self.is_analyzing {
+            return;
+        }
+        let candidates = DuplicateDetector::collect_candidates(root, 1024 * 1024);
+        let total_files: usize = candidates.iter().map(|(_, p)| p.len()).sum();
+        if total_files == 0 {
+            self.duplicate_groups.clear();
+            self.has_analyzed = true;
+            self.is_analyzing = false;
+            self.scan_rx = None;
+            self.progress_counter = None;
+            self.total_candidate_files = 0;
+            return;
+        }
+
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let counter = Arc::new(AtomicUsize::new(0));
+        self.progress_counter = Some(counter.clone());
+        self.total_candidate_files = total_files;
+        self.scan_rx = Some(rx);
+        self.is_analyzing = true;
+
+        std::thread::spawn(move || {
+            let groups = DuplicateDetector::compute_duplicates_from_candidates(candidates, Some(counter));
+            let _ = tx.send(groups);
+        });
     }
 }
 
@@ -70,10 +110,79 @@ pub fn render_duplicates_view(
         return;
     };
 
+    // Poll background receiver
+    if state.is_analyzing {
+        ui.ctx().request_repaint(); // Redraw UI at 60 FPS while background thread works
+        if let Some(rx) = &state.scan_rx {
+            if let Ok(groups) = rx.try_recv() {
+                state.duplicate_groups = groups;
+                state.has_analyzed = true;
+                state.is_analyzing = false;
+                state.scan_rx = None;
+                state.progress_counter = None;
+            }
+        }
+    }
+
     // Initial analysis trigger if not yet performed
     if !state.has_analyzed && !state.is_analyzing {
-        state.duplicate_groups = DuplicateDetector::find_duplicates(root, 1024 * 1024, None);
-        state.has_analyzed = true;
+        state.trigger_background_scan(root);
+    }
+
+    // While analyzing without existing cached groups, show smooth indeterminate/determinate loader
+    if state.is_analyzing && state.duplicate_groups.is_empty() {
+        let processed = state
+            .progress_counter
+            .as_ref()
+            .map(|c| c.load(Ordering::Relaxed))
+            .unwrap_or(0);
+        let total = state.total_candidate_files;
+        let fraction = if total > 0 {
+            (processed as f32 / total as f32).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(80.0);
+                    egui::Frame::none()
+                        .fill(t.bg_elevated)
+                        .rounding(8.0_f32)
+                        .stroke(egui::Stroke::new(1.0_f32, t.border))
+                        .inner_margin(Margin::same(24.0))
+                        .show(ui, |ui| {
+                            ui.set_max_width(520.0);
+                            ui.vertical_centered(|ui| {
+                                ui.spinner();
+                                ui.add_space(10.0);
+                                ui.label(RichText::new("Scanning Duplicates").size(16.0).strong().color(t.text));
+                                ui.add_space(8.0);
+                                ui.add(
+                                    egui::ProgressBar::new(fraction)
+                                        .show_percentage()
+                                        .animate(true)
+                                );
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new(format!("Hashed {} of {} candidates ({:.0}%)", processed, total, fraction * 100.0))
+                                        .size(12.0)
+                                        .monospace()
+                                        .color(t.text_secondary),
+                                );
+                                ui.add_space(6.0);
+                                ui.label(
+                                    RichText::new("Comparing byte-for-byte SHA-256 hashes in background via Rayon. UI remains responsive at 60 FPS.")
+                                        .size(11.0)
+                                        .color(t.text_muted),
+                                );
+                            });
+                        });
+                });
+            });
+        return;
     }
 
     egui::ScrollArea::vertical()
@@ -160,12 +269,39 @@ pub fn render_duplicates_view(
                             }
                         }
 
-                        if ui.small_button("🔄 Rescan").clicked() {
-                            state.duplicate_groups = DuplicateDetector::find_duplicates(root, 1024 * 1024, None);
-                            modals.show_toast("Recomputed duplicate SHA-256 hashes".to_string(), false);
+                        let rescan_btn = ui.add_enabled(
+                            !state.is_analyzing,
+                            egui::Button::new(RichText::new("🔄 Rescan").size(11.0))
+                        );
+                        if rescan_btn.clicked() {
+                            state.trigger_background_scan(root);
+                            modals.show_toast("Started background duplicate scan".to_string(), false);
                         }
                     });
                 });
+
+                if state.is_analyzing {
+                    ui.add_space(6.0);
+                    let processed = state
+                        .progress_counter
+                        .as_ref()
+                        .map(|c| c.load(Ordering::Relaxed))
+                        .unwrap_or(0);
+                    let total = state.total_candidate_files;
+                    let fraction = if total > 0 {
+                        (processed as f32 / total as f32).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            RichText::new(format!("Rescanning in background: {}/{} candidates ({:.0}%)", processed, total, fraction * 100.0))
+                                .size(11.0)
+                                .color(t.accent)
+                        );
+                    });
+                }
 
                 ui.add_space(10.0);
 

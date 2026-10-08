@@ -293,20 +293,25 @@ pub fn render_tree_view(
     let mut navigate_to = None;
     let total_rows = display_children.len();
 
-    let avail_w = ui.available_width();
+    let bottom_bar_height = 28.0;
+    let available_height = (ui.available_height() - bottom_bar_height).max(100.0);
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 8.0;
+    let avail_w = (ui.available_width() - scrollbar_margin).max(100.0);
+
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
+        .max_height(available_height)
         .max_width(avail_w)
         .show(ui, |ui| {
             TableBuilder::new(ui)
                 .striped(true)
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::remainder().clip(true)) // File/Folder Name: absorbs all leftover width
-                .column(Column::exact(95.0))            // Apparent Size
-                .column(Column::exact(100.0))           // Inline visual bar (% of parent)
-                .column(Column::exact(85.0))            // Category badge
-                .column(Column::exact(80.0))            // Action buttons
+                .column(Column::remainder().clip(true)) // Name & path middle-truncated
+                .column(Column::exact(100.0))          // Apparent Size
+                .column(Column::exact(110.0))          // Usage Progress Bar
+                .column(Column::exact(100.0))          // Type
+                .column(Column::exact(85.0))           // Actions Toolbar
                 .header(24.0, |mut header| {
                     header.col(|ui| {
                         if ui.selectable_label(sort_col == SortColumn::Name, RichText::new("Name / Path").strong().color(t.text_muted)).clicked() {
@@ -412,6 +417,8 @@ pub fn render_tree_view(
                                     if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
                                         modals.pending_confirm = Some(ConfirmAction::MoveToTrash(child.path.clone(), child.size));
                                     }
+
+                                    ui.add_space(8.0);
                                 });
                             });
                         }
@@ -425,7 +432,7 @@ pub fn render_tree_view(
         state.treemap_state.current_path = target;
     }
 
-    ui.add_space(14.0);
+    ui.add_space(2.0);
 }
 
 fn toggle_sort(column: &mut SortColumn, order: &mut SortOrder, clicked: SortColumn) {

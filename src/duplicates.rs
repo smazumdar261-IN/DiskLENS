@@ -49,16 +49,29 @@ impl DuplicateDetector {
         min_size_bytes: u64,
         progress_counter: Option<Arc<AtomicUsize>>,
     ) -> Vec<DuplicateGroup> {
-        // Step 1: Collect candidate files
+        let candidates = Self::collect_candidates(root, min_size_bytes);
+        Self::compute_duplicates_from_candidates(candidates, progress_counter)
+    }
+
+    /// Collect candidate files by size grouping (fast in-memory tree traversal)
+    pub fn collect_candidates(
+        root: &FileNode,
+        min_size_bytes: u64,
+    ) -> Vec<(u64, Vec<PathBuf>)> {
         let mut candidates_by_size: HashMap<u64, Vec<PathBuf>> = HashMap::new();
         Self::collect_files(root, min_size_bytes, &mut candidates_by_size);
 
-        // Keep only size collisions with 2+ files
-        let collision_groups: Vec<(u64, Vec<PathBuf>)> = candidates_by_size
+        candidates_by_size
             .into_iter()
             .filter(|(_size, paths)| paths.len() >= 2)
-            .collect();
+            .collect()
+    }
 
+    /// Compute cryptographic SHA-256 hashes in parallel on candidate collision groups
+    pub fn compute_duplicates_from_candidates(
+        collision_groups: Vec<(u64, Vec<PathBuf>)>,
+        progress_counter: Option<Arc<AtomicUsize>>,
+    ) -> Vec<DuplicateGroup> {
         if collision_groups.is_empty() {
             return Vec::new();
         }
