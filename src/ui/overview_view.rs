@@ -15,6 +15,7 @@ pub enum OverviewListTab {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OverviewAction {
     Navigate(ActiveTab),
+    NavigateToPath(ActiveTab, PathBuf),
     OpenInFileManager(PathBuf),
     OpenFile(PathBuf),
     OpenTerminal(PathBuf),
@@ -28,12 +29,62 @@ pub enum OverviewAction {
 
 pub struct OverviewViewState {
     pub active_list_tab: OverviewListTab,
+    pub current_path: PathBuf,
+    pub history: Vec<PathBuf>,
+    pub history_index: usize,
 }
 
 impl Default for OverviewViewState {
     fn default() -> Self {
         Self {
             active_list_tab: OverviewListTab::Files,
+            current_path: PathBuf::new(),
+            history: Vec::new(),
+            history_index: 0,
+        }
+    }
+}
+
+impl OverviewViewState {
+    pub fn navigate_to(&mut self, path: PathBuf) {
+        if self.current_path == path {
+            return;
+        }
+        if !self.history.is_empty() && self.history_index + 1 < self.history.len() {
+            self.history.truncate(self.history_index + 1);
+        }
+        self.history.push(path.clone());
+        self.history_index = self.history.len() - 1;
+        self.current_path = path;
+    }
+
+    pub fn can_go_back(&self) -> bool {
+        self.history_index > 0
+    }
+
+    pub fn can_go_forward(&self) -> bool {
+        !self.history.is_empty() && self.history_index + 1 < self.history.len()
+    }
+
+    pub fn go_back(&mut self) -> Option<PathBuf> {
+        if self.can_go_back() {
+            self.history_index -= 1;
+            let path = self.history[self.history_index].clone();
+            self.current_path = path.clone();
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub fn go_forward(&mut self) -> Option<PathBuf> {
+        if self.can_go_forward() {
+            self.history_index += 1;
+            let path = self.history[self.history_index].clone();
+            self.current_path = path.clone();
+            Some(path)
+        } else {
+            None
         }
     }
 }
@@ -45,11 +96,21 @@ pub fn render_overview_view(
     ui: &mut Ui,
     root: &FileNode,
     cache: &AnalysisCache,
-    _state: &mut OverviewViewState,
+    state: &mut OverviewViewState,
     dark_mode: bool,
 ) -> Option<OverviewAction> {
     let mut action: Option<OverviewAction> = None;
     let t = AppTheme::tokens(dark_mode);
+
+    if state.current_path.as_os_str().is_empty() {
+        state.current_path = root.path.clone();
+    }
+    if state.history.is_empty() {
+        state.history.push(state.current_path.clone());
+        state.history_index = 0;
+    }
+
+    let current_node = root.find_node_by_path(&state.current_path).unwrap_or(root);
 
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -60,34 +121,105 @@ pub fn render_overview_view(
                 ui.set_max_width(total_avail);
                 ui.add_space(4.0);
 
-                // 1. Top Breadcrumb & Quick Switcher Strip
-                ui.horizontal(|ui| {
-                    let loc_name = root.path.file_name().unwrap_or_default().to_string_lossy().to_string();
-                    let display_name = if loc_name.is_empty() { root.path.display().to_string() } else { loc_name };
+                // 1. Top Breadcrumb & Navigation Header
+                egui::Frame::none()
+                    .fill(t.bg_elevated)
+                    .rounding(6.0_f32)
+                    .stroke(egui::Stroke::new(1.0_f32, t.border))
+                    .inner_margin(Margin::symmetric(10.0, 6.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Windows Explorer-style Back & Forward Navigation Controls
+                            let back_enabled = state.can_go_back();
+                            let back_text = RichText::new("◀").size(11.0).color(if back_enabled { t.text } else { t.text_muted.gamma_multiply(0.35) });
+                            let back_btn = egui::Button::new(back_text)
+                                .fill(Color32::TRANSPARENT)
+                                .min_size(Vec2::new(20.0, 20.0));
+                            if ui.add_enabled(back_enabled, back_btn).on_hover_text("Navigate back in folder history").clicked() {
+                                state.go_back();
+                            }
 
-                    ui.label(RichText::new("Target:").size(11.0).strong().color(t.text_muted));
-                    ui.label(RichText::new(&display_name).size(12.5).strong().color(t.accent));
-                    let path_str = root.path.display().to_string();
-                    ui.add(
-                        egui::Label::new(RichText::new(format!("({})", truncate_middle(&path_str, 42))).size(10.5).monospace().color(t.text_muted))
-                            .truncate(),
-                    ).on_hover_text(&path_str);
+                            let fwd_enabled = state.can_go_forward();
+                            let fwd_text = RichText::new("▶").size(11.0).color(if fwd_enabled { t.text } else { t.text_muted.gamma_multiply(0.35) });
+                            let fwd_btn = egui::Button::new(fwd_text)
+                                .fill(Color32::TRANSPARENT)
+                                .min_size(Vec2::new(20.0, 20.0));
+                            if ui.add_enabled(fwd_enabled, fwd_btn).on_hover_text("Navigate forward in folder history").clicked() {
+                                state.go_forward();
+                            }
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("📄 File Types →").on_hover_text("Open Extension & Category Matrix").clicked() {
-                            action = Some(OverviewAction::Navigate(ActiveTab::Categories));
-                        }
-                        if ui.small_button("⚠ Space Hogs →").on_hover_text("Open Space Hogs Leaderboard").clicked() {
-                            action = Some(OverviewAction::Navigate(ActiveTab::LargestFiles));
-                        }
-                        if ui.small_button("📁 Folder Tree →").on_hover_text("Open Folder Tree Explorer").clicked() {
-                            action = Some(OverviewAction::Navigate(ActiveTab::DirectoryTree));
-                        }
-                        if ui.small_button("⊞ Treemap →").on_hover_text("Open Visual Treemap").clicked() {
-                            action = Some(OverviewAction::Navigate(ActiveTab::Treemap));
-                        }
+                            let parent_opt = state.current_path.parent().map(|p| p.to_path_buf());
+                            let can_go_up = if let Some(parent) = &parent_opt {
+                                parent.starts_with(&root.path) || *parent == root.path
+                            } else {
+                                false
+                            };
+                            let up_btn = egui::Button::new(RichText::new("↰ Up").size(11.0).color(if can_go_up { t.text } else { t.text_muted.gamma_multiply(0.35) }))
+                                .fill(Color32::TRANSPARENT);
+                            if ui.add_enabled(can_go_up, up_btn).on_hover_text("Navigate to parent directory").clicked() {
+                                if let Some(parent) = parent_opt {
+                                    state.navigate_to(parent);
+                                }
+                            }
+
+                            let is_at_root = state.current_path == root.path;
+                            let root_btn = egui::Button::new(RichText::new("🏠 Root").size(11.0).strong().color(if is_at_root { t.accent } else { t.text }))
+                                .fill(Color32::TRANSPARENT);
+                            if ui.add(root_btn).on_hover_text("Return to scan root").clicked() {
+                                state.navigate_to(root.path.clone());
+                            }
+
+                            ui.separator();
+
+                            // Breadcrumb path components
+                            let rel_path = state
+                                .current_path
+                                .strip_prefix(root.path.parent().unwrap_or(&root.path))
+                                .unwrap_or(&state.current_path)
+                                .to_path_buf();
+
+                            let mut accum = root.path.parent().unwrap_or(&root.path).to_path_buf();
+                            let mut clicked_crumb = None;
+
+                            for comp in rel_path.iter() {
+                                accum.push(comp);
+                                let c_str = comp.to_string_lossy().to_string();
+                                let is_active = accum == state.current_path;
+                                let target_clone = accum.clone();
+
+                                if ui.selectable_label(is_active, RichText::new(&c_str).size(11.0).strong()).clicked() {
+                                    clicked_crumb = Some(target_clone);
+                                }
+                                ui.label(RichText::new(">").size(10.0).color(t.text_muted));
+                            }
+
+                            if let Some(p) = clicked_crumb {
+                                state.navigate_to(p);
+                            }
+
+                            // Right-aligned view switcher toolbar with Direct Explorer Option
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.small_button("📄 File Types →").on_hover_text("Open Extension & Category Matrix").clicked() {
+                                    action = Some(OverviewAction::Navigate(ActiveTab::Categories));
+                                }
+                                if ui.small_button("⚠ Space Hogs →").on_hover_text("Open Space Hogs Leaderboard").clicked() {
+                                    action = Some(OverviewAction::Navigate(ActiveTab::LargestFiles));
+                                }
+                                if ui.small_button("📁 Folder Tree →").on_hover_text("Open Hierarchical Folder Tree").clicked() {
+                                    action = Some(OverviewAction::Navigate(ActiveTab::DirectoryTree));
+                                }
+                                if ui.small_button("⊞ Treemap →").on_hover_text("Open Visual Squarified Treemap").clicked() {
+                                    action = Some(OverviewAction::Navigate(ActiveTab::Treemap));
+                                }
+                                if ui.small_button(RichText::new("🔍 Explorer →").color(t.accent).strong())
+                                    .on_hover_text("Open Interactive File Browser & Explorer at current path")
+                                    .clicked()
+                                {
+                                    action = Some(OverviewAction::NavigateToPath(ActiveTab::DirectoryTree, state.current_path.clone()));
+                                }
+                            });
+                        });
                     });
-                });
 
                 ui.add_space(8.0);
 
@@ -128,8 +260,8 @@ pub fn render_overview_view(
                 let num_vitals = if total_avail >= 1100.0 { 4 } else if total_avail >= 650.0 { 2 } else { 1 };
                 let vitals_card_w = ((total_avail - (vitals_spacing * (num_vitals as f32 - 1.0))) / num_vitals as f32).floor();
 
-                let apparent_bytes = root.size;
-                let allocated_bytes = root.allocated_size;
+                let apparent_bytes = current_node.size;
+                let allocated_bytes = current_node.allocated_size;
                 let is_sparse_or_compressed = allocated_bytes < apparent_bytes;
                 let savings_bytes = apparent_bytes.saturating_sub(allocated_bytes);
                 let savings_pct = if apparent_bytes > 0 { (savings_bytes as f64 / apparent_bytes as f64) * 100.0 } else { 0.0 };
@@ -139,7 +271,7 @@ pub fn render_overview_view(
                         ui.spacing_mut().item_spacing.x = vitals_spacing;
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
-                            render_bento_tile_apparent(ui, root, vitals_card_w, &t);
+                            render_bento_tile_apparent(ui, current_node, vitals_card_w, &t);
                         });
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
@@ -147,11 +279,11 @@ pub fn render_overview_view(
                         });
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
-                            render_bento_tile_crawler(ui, root, cache, vitals_card_w, &t);
+                            render_bento_tile_crawler(ui, current_node, cache, vitals_card_w, &t);
                         });
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
-                            render_bento_tile_mount(ui, root, vitals_card_w, &t);
+                            render_bento_tile_mount(ui, current_node, vitals_card_w, &t);
                         });
                     });
                 } else if num_vitals == 2 {
@@ -159,7 +291,7 @@ pub fn render_overview_view(
                         ui.spacing_mut().item_spacing.x = vitals_spacing;
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
-                            render_bento_tile_apparent(ui, root, vitals_card_w, &t);
+                            render_bento_tile_apparent(ui, current_node, vitals_card_w, &t);
                         });
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
@@ -171,18 +303,18 @@ pub fn render_overview_view(
                         ui.spacing_mut().item_spacing.x = vitals_spacing;
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
-                            render_bento_tile_crawler(ui, root, cache, vitals_card_w, &t);
+                            render_bento_tile_crawler(ui, current_node, cache, vitals_card_w, &t);
                         });
                         ui.allocate_ui_with_layout(egui::vec2(vitals_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(vitals_card_w);
-                            render_bento_tile_mount(ui, root, vitals_card_w, &t);
+                            render_bento_tile_mount(ui, current_node, vitals_card_w, &t);
                         });
                     });
                 } else {
                     ui.vertical(|ui| {
                         ui.allocate_ui_with_layout(egui::vec2(total_avail, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(total_avail);
-                            render_bento_tile_apparent(ui, root, total_avail, &t);
+                            render_bento_tile_apparent(ui, current_node, total_avail, &t);
                         });
                         ui.add_space(vitals_spacing);
                         ui.allocate_ui_with_layout(egui::vec2(total_avail, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
@@ -192,12 +324,12 @@ pub fn render_overview_view(
                         ui.add_space(vitals_spacing);
                         ui.allocate_ui_with_layout(egui::vec2(total_avail, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(total_avail);
-                            render_bento_tile_crawler(ui, root, cache, total_avail, &t);
+                            render_bento_tile_crawler(ui, current_node, cache, total_avail, &t);
                         });
                         ui.add_space(vitals_spacing);
                         ui.allocate_ui_with_layout(egui::vec2(total_avail, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                             ui.set_max_width(total_avail);
-                            render_bento_tile_mount(ui, root, total_avail, &t);
+                            render_bento_tile_mount(ui, current_node, total_avail, &t);
                         });
                     });
                 }

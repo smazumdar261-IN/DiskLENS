@@ -3,7 +3,7 @@ use crate::models::{format_size, FileCategory, FileNode, SortColumn, SortOrder};
 use crate::theme::AppTheme;
 use crate::ui::modals::{ConfirmAction, ModalManager};
 use crate::ui::treemap_view::TreemapViewState;
-use eframe::egui::{self, Margin, Rect, RichText, Sense, Ui, Vec2};
+use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 
@@ -22,6 +22,8 @@ impl Default for ExplorerMode {
 pub struct TreeViewState {
     pub mode: ExplorerMode,
     pub current_path: PathBuf,
+    pub history: Vec<PathBuf>,
+    pub history_index: usize,
     pub sort_column: SortColumn,
     pub sort_order: SortOrder,
     pub search_filter: String,
@@ -36,6 +38,8 @@ impl Default for TreeViewState {
         Self {
             mode: ExplorerMode::Tree,
             current_path: PathBuf::new(),
+            history: Vec::new(),
+            history_index: 0,
             sort_column: SortColumn::Size,
             sort_order: SortOrder::Descending,
             search_filter: String::new(),
@@ -43,6 +47,53 @@ impl Default for TreeViewState {
             min_size_filter_mb: 0.0,
             selected_node: None,
             treemap_state: TreemapViewState::default(),
+        }
+    }
+}
+
+impl TreeViewState {
+    pub fn navigate_to(&mut self, path: PathBuf) {
+        if self.current_path == path {
+            return;
+        }
+        if !self.history.is_empty() && self.history_index + 1 < self.history.len() {
+            self.history.truncate(self.history_index + 1);
+        }
+        self.history.push(path.clone());
+        self.history_index = self.history.len() - 1;
+        self.current_path = path;
+        self.selected_node = None;
+    }
+
+    pub fn can_go_back(&self) -> bool {
+        self.history_index > 0
+    }
+
+    pub fn can_go_forward(&self) -> bool {
+        !self.history.is_empty() && self.history_index + 1 < self.history.len()
+    }
+
+    pub fn go_back(&mut self) -> Option<PathBuf> {
+        if self.can_go_back() {
+            self.history_index -= 1;
+            let path = self.history[self.history_index].clone();
+            self.current_path = path.clone();
+            self.selected_node = None;
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub fn go_forward(&mut self) -> Option<PathBuf> {
+        if self.can_go_forward() {
+            self.history_index += 1;
+            let path = self.history[self.history_index].clone();
+            self.current_path = path.clone();
+            self.selected_node = None;
+            Some(path)
+        } else {
+            None
         }
     }
 }
@@ -63,10 +114,14 @@ pub fn render_tree_view(
     if state.current_path.as_os_str().is_empty() {
         state.current_path = root.path.clone();
     }
+    if state.history.is_empty() {
+        state.history.push(state.current_path.clone());
+        state.history_index = 0;
+    }
 
     let current_node = root.find_node_by_path(&state.current_path).unwrap_or(root);
 
-    // 1. Breadcrumbs Bar
+    // 1. Breadcrumbs Bar with Windows Explorer-style Back & Forward Navigation
     egui::Frame::none()
         .fill(t.bg_elevated)
         .rounding(6.0_f32)
@@ -74,19 +129,45 @@ pub fn render_tree_view(
         .inner_margin(Margin::symmetric(10.0, 6.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
+                // Back button
+                let back_enabled = state.can_go_back();
+                let back_text = RichText::new("◀").size(11.0).color(if back_enabled { t.text } else { t.text_muted.gamma_multiply(0.35) });
+                let back_btn = egui::Button::new(back_text)
+                    .fill(Color32::TRANSPARENT)
+                    .min_size(Vec2::new(20.0, 20.0));
+                if ui.add_enabled(back_enabled, back_btn).on_hover_text("Navigate back in folder history").clicked() {
+                    state.go_back();
+                }
+
+                // Forward button
+                let fwd_enabled = state.can_go_forward();
+                let fwd_text = RichText::new("▶").size(11.0).color(if fwd_enabled { t.text } else { t.text_muted.gamma_multiply(0.35) });
+                let fwd_btn = egui::Button::new(fwd_text)
+                    .fill(Color32::TRANSPARENT)
+                    .min_size(Vec2::new(20.0, 20.0));
+                if ui.add_enabled(fwd_enabled, fwd_btn).on_hover_text("Navigate forward in folder history").clicked() {
+                    state.go_forward();
+                }
+
                 let parent_opt = state.current_path.parent().map(|p| p.to_path_buf());
-                if ui.button("↰ Up").on_hover_text("Go to parent directory").clicked() {
+                let can_go_up = if let Some(parent) = &parent_opt {
+                    parent.starts_with(&root.path) || *parent == root.path
+                } else {
+                    false
+                };
+                let up_btn = egui::Button::new(RichText::new("↰ Up").size(11.0).color(if can_go_up { t.text } else { t.text_muted.gamma_multiply(0.35) }))
+                    .fill(Color32::TRANSPARENT);
+                if ui.add_enabled(can_go_up, up_btn).on_hover_text("Navigate to parent directory").clicked() {
                     if let Some(parent) = parent_opt {
-                        if parent.starts_with(&root.path) || parent == root.path {
-                            state.current_path = parent.clone();
-                            state.selected_node = None;
-                        }
+                        state.navigate_to(parent);
                     }
                 }
 
-                if ui.button("🏠 Root").on_hover_text("Return to scan root").clicked() {
-                    state.current_path = root.path.clone();
-                    state.selected_node = None;
+                let is_at_root = state.current_path == root.path;
+                let root_btn = egui::Button::new(RichText::new("🏠 Root").size(11.0).strong().color(if is_at_root { t.accent } else { t.text }))
+                    .fill(Color32::TRANSPARENT);
+                if ui.add(root_btn).on_hover_text("Return to scan root").clicked() {
+                    state.navigate_to(root.path.clone());
                 }
 
                 ui.label(RichText::new("|").size(11.0).color(t.border));
@@ -113,8 +194,7 @@ pub fn render_tree_view(
                 }
 
                 if let Some(p) = clicked_crumb {
-                    state.current_path = p.clone();
-                    state.selected_node = None;
+                    state.navigate_to(p);
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -270,7 +350,7 @@ pub fn render_tree_view(
 
     let bottom_bar_height = 28.0;
     let available_height = (ui.available_height() - bottom_bar_height).max(100.0);
-    let scrollbar_margin = ui.spacing().scroll.bar_width + 8.0;
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
     let avail_w = (ui.available_width() - scrollbar_margin).max(100.0);
 
     egui::ScrollArea::vertical()
@@ -283,10 +363,10 @@ pub fn render_tree_view(
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::remainder().clip(true)) // Name & path middle-truncated
-                .column(Column::exact(100.0))          // Apparent Size
-                .column(Column::exact(110.0))          // Usage Progress Bar
-                .column(Column::exact(100.0))          // Type
-                .column(Column::exact(85.0))           // Actions Toolbar
+                .column(Column::exact(85.0))           // Apparent Size
+                .column(Column::exact(95.0))           // Usage Progress Bar
+                .column(Column::exact(80.0))           // Type
+                .column(Column::exact(125.0))          // Actions Toolbar
                 .header(24.0, |mut header| {
                     header.col(|ui| {
                         if ui.selectable_label(sort_col == SortColumn::Name, RichText::new("Name / Path").strong().color(t.text_muted)).clicked() {
@@ -364,10 +444,11 @@ pub fn render_tree_view(
                                 ui.label(RichText::new(type_s).size(10.5).color(color));
                             });
 
-                            // Col 5: Actions toolbar (80px)
+                            // Col 5: Actions toolbar (125px)
                             row.col(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing.x = 2.0;
+                                    ui.spacing_mut().button_padding = Vec2::new(4.0, 2.0);
 
                                     if child.is_dir {
                                         if ui.small_button("→").on_hover_text("Explore folder").clicked() {
@@ -392,8 +473,6 @@ pub fn render_tree_view(
                                     if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
                                         modals.pending_confirm = Some(ConfirmAction::MoveToTrash(child.path.clone(), child.size));
                                     }
-
-                                    ui.add_space(8.0);
                                 });
                             });
                         }

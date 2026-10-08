@@ -2,7 +2,8 @@ use crate::manage::StorageManager;
 use crate::models::format_size;
 use crate::theme::AppTheme;
 use crate::ui::modals::ModalManager;
-use eframe::egui::{self, Color32, Margin, RichText, Ui, Vec2};
+use eframe::egui::{self, Color32, Margin, Rect, RichText, Sense, Ui, Vec2};
+use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 use sysinfo::Disks;
 
@@ -214,41 +215,111 @@ pub fn render_mounts_view(
                         ui.separator();
                         ui.add_space(6.0);
 
-                        egui::Grid::new("mounts_table_grid")
+                        TableBuilder::new(ui)
                             .striped(true)
-                            .min_col_width(70.0)
-                            .spacing(Vec2::new(12.0, 6.0))
-                            .show(ui, |ui| {
-                                ui.label(RichText::new("DEVICE").size(10.0).strong().color(t.text_muted));
-                                ui.label(RichText::new("MOUNT POINT").size(10.0).strong().color(t.text_muted));
-                                ui.label(RichText::new("FS TYPE").size(10.0).strong().color(t.text_muted));
-                                ui.label(RichText::new("TOTAL / USED").size(10.0).strong().color(t.text_muted));
-                                ui.label(RichText::new("ACTION").size(10.0).strong().color(t.text_muted));
-                                ui.end_row();
-
-                                for item in &mount_items {
+                            .resizable(false)
+                            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                            .column(Column::initial(130.0).at_least(100.0)) // DEVICE
+                            .column(Column::remainder().clip(true))        // MOUNT POINT
+                            .column(Column::exact(85.0))                   // FS TYPE BADGE
+                            .column(Column::exact(190.0))                  // TOTAL / USED
+                            .column(Column::exact(135.0))                  // ACTIONS
+                            .header(24.0, |mut header| {
+                                header.col(|ui| {
+                                    ui.label(RichText::new("DEVICE").size(10.0).strong().color(t.text_muted));
+                                });
+                                header.col(|ui| {
+                                    ui.label(RichText::new("MOUNT POINT").size(10.0).strong().color(t.text_muted));
+                                });
+                                header.col(|ui| {
+                                    ui.label(RichText::new("FS TYPE").size(10.0).strong().color(t.text_muted));
+                                });
+                                header.col(|ui| {
+                                    ui.label(RichText::new("TOTAL / USED").size(10.0).strong().color(t.text_muted));
+                                });
+                                header.col(|ui| {
+                                    ui.label(RichText::new("ACTIONS").size(10.0).strong().color(t.text_muted));
+                                });
+                            })
+                            .body(|body| {
+                                body.rows(32.0, mount_items.len(), |mut row| {
+                                    let item = &mount_items[row.index()];
                                     let is_selected = item.index == selected_mount_index;
                                     let dev_color = if is_selected { t.accent } else { t.text };
 
-                                    if ui.selectable_label(is_selected, RichText::new(&item.dev_name).size(11.5).strong().color(dev_color)).clicked() {
-                                        new_selection = Some(item.index);
-                                    }
-
-                                    ui.label(RichText::new(&item.mount_point_str).size(11.5).color(t.text));
-                                    ui.label(RichText::new(&item.fs_type).size(11.0).monospace().color(t.purple));
-                                    ui.label(RichText::new(format!("{} / {} ({:.0}%)", format_size(item.used), format_size(item.total), item.usage_pct)).size(11.0).color(t.text));
-
-                                    ui.horizontal(|ui| {
-                                        if ui.small_button("🔍 Scan").clicked() {
-                                            on_analyze(item.mount_point.clone());
-                                        }
-                                        if ui.small_button("⚡ TRIM").clicked() {
-                                            trim_target = Some(item.mount_point.clone());
-                                        }
+                                    // Col 1: DEVICE
+                                    row.col(|ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(RichText::new("🖴").size(12.0).color(t.text_muted));
+                                            if ui.selectable_label(is_selected, RichText::new(&item.dev_name).size(11.5).strong().color(dev_color)).clicked() {
+                                                new_selection = Some(item.index);
+                                            }
+                                        });
                                     });
 
-                                    ui.end_row();
-                                }
+                                    // Col 2: MOUNT POINT
+                                    row.col(|ui| {
+                                        let p_str = &item.mount_point_str;
+                                        ui.add(
+                                            egui::Label::new(RichText::new(p_str).size(11.5).color(t.text))
+                                                .truncate(),
+                                        ).on_hover_text(p_str);
+                                    });
+
+                                    // Col 3: FS TYPE BADGE PILL
+                                    row.col(|ui| {
+                                        let (badge_bg, badge_fg) = match item.fs_type.to_lowercase().as_str() {
+                                            "btrfs" => (t.purple.gamma_multiply(0.18), t.purple),
+                                            "ext4" => (t.accent.gamma_multiply(0.18), t.accent),
+                                            "zfs" => (t.cyan.gamma_multiply(0.18), t.cyan),
+                                            "xfs" => (t.warning.gamma_multiply(0.18), t.warning),
+                                            "vfat" | "exfat" => (t.text_secondary.gamma_multiply(0.18), t.text_secondary),
+                                            _ => (t.bg_surface, t.text_muted),
+                                        };
+                                        egui::Frame::none()
+                                            .fill(badge_bg)
+                                            .rounding(3.0_f32)
+                                            .inner_margin(Margin::symmetric(6.0, 2.0))
+                                            .show(ui, |ui| {
+                                                ui.label(RichText::new(item.fs_type.to_uppercase()).size(10.0).monospace().strong().color(badge_fg));
+                                            });
+                                    });
+
+                                    // Col 4: TOTAL / USED + PROGRESS BAR
+                                    row.col(|ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 6.0;
+                                            ui.label(RichText::new(format!("{} / {}", format_size(item.used), format_size(item.total))).size(11.0).monospace().color(t.text));
+                                            let pct = (item.usage_pct / 100.0).clamp(0.0, 1.0) as f32;
+                                            let bar_w = 40.0_f32;
+                                            let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), Sense::hover());
+                                            ui.painter().rect_filled(bar_rect, 2.0_f32, t.bg_input);
+                                            let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new((bar_w * pct).max(1.0), bar_rect.height()));
+                                            let bar_col = if pct > 0.9 { t.danger } else if pct > 0.75 { t.warning } else { t.accent };
+                                            ui.painter().rect_filled(filled_rect, 2.0_f32, bar_col);
+                                            ui.label(RichText::new(format!("{:.0}%", item.usage_pct)).size(10.5).monospace().color(t.text_muted));
+                                        });
+                                    });
+
+                                    // Col 5: INLINE ACTION BUTTONS (Aligned dimensions)
+                                    row.col(|ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 4.0;
+                                            if ui.add_sized([58.0, 22.0], egui::Button::new(RichText::new("🔍 Scan").size(11.0)))
+                                                .on_hover_text("Analyze this filesystem")
+                                                .clicked()
+                                            {
+                                                on_analyze(item.mount_point.clone());
+                                            }
+                                            if ui.add_sized([58.0, 22.0], egui::Button::new(RichText::new("⚡ TRIM").size(11.0)))
+                                                .on_hover_text("Issue fstrim discard")
+                                                .clicked()
+                                            {
+                                                trim_target = Some(item.mount_point.clone());
+                                            }
+                                        });
+                                    });
+                                });
                             });
                     });
 

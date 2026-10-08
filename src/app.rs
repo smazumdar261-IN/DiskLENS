@@ -311,6 +311,11 @@ impl DiskLensApp {
             OverviewAction::Navigate(tab) => {
                 self.navigate_to(tab);
             }
+            OverviewAction::NavigateToPath(tab, path) => {
+                self.tree_state.current_path = path.clone();
+                self.treemap_state.current_path = path;
+                self.navigate_to(tab);
+            }
             OverviewAction::OpenInFileManager(path) => {
                 if let Err(e) = self.file_system.open_in_file_manager(&path) {
                     self.modals.show_toast(e.clone(), true);
@@ -462,6 +467,9 @@ impl DiskLensApp {
                     self.modals.log("INFO", &format!("Scan complete: {} files, {} dirs in {:.2}s", root.file_count, root.dir_count, elapsed));
                     self.tree_state.current_path = root.path.clone();
                     self.treemap_state.current_path = root.path.clone();
+                    self.overview_state.current_path = root.path.clone();
+                    self.overview_state.history = vec![root.path.clone()];
+                    self.overview_state.history_index = 0;
                     self.session.set_ready(root);
                     self.selected_tab = ActiveTab::Overview;
                 }

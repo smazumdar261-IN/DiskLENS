@@ -2,7 +2,7 @@ use crate::actions::FileActions;
 use crate::models::{format_size, FileCategory, LargeFileInfo};
 use crate::theme::{truncate_middle, AppTheme};
 use crate::ui::modals::{ConfirmAction, ModalManager};
-use eframe::egui::{self, Margin, RichText, Ui};
+use eframe::egui::{self, Margin, RichText, Ui, Vec2};
 use egui_extras::{Column, TableBuilder};
 use std::path::PathBuf;
 
@@ -162,7 +162,7 @@ pub fn render_largest_files_view(
 
     let bottom_bar_height = 28.0;
     let available_height = (ui.available_height() - bottom_bar_height).max(100.0);
-    let scrollbar_margin = ui.spacing().scroll.bar_width + 8.0;
+    let scrollbar_margin = ui.spacing().scroll.bar_width + 14.0;
     let avail_w = (ui.available_width() - scrollbar_margin).max(100.0);
 
     egui::ScrollArea::vertical()
@@ -176,11 +176,11 @@ pub fn render_largest_files_view(
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Column::exact(32.0))             // Rank
                 .column(Column::remainder().clip(true))  // Item & Location
-                .column(Column::exact(90.0))             // Apparent Size
-                .column(Column::exact(90.0))             // Allocated Disk
-                .column(Column::exact(90.0))             // Category
-                .column(Column::exact(95.0))             // Assessment
-                .column(Column::exact(85.0))             // Actions
+                .column(Column::exact(85.0))             // Apparent Size
+                .column(Column::exact(85.0))             // Allocated Disk
+                .column(Column::exact(85.0))             // Category
+                .column(Column::exact(90.0))             // Assessment
+                .column(Column::exact(125.0))            // Actions
                 .header(24.0, |mut header| {
                     header.col(|ui| {
                         ui.label(RichText::new("#").strong().color(t.text_muted));
@@ -296,6 +296,7 @@ pub fn render_largest_files_view(
                             row.col(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing.x = 2.0;
+                                    ui.spacing_mut().button_padding = Vec2::new(4.0, 2.0);
 
                                     if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
                                         let _ = FileActions::open_in_file_manager(&file.path);
@@ -313,8 +314,6 @@ pub fn render_largest_files_view(
                                     if ui.small_button("🔥").on_hover_text("Shred / Permanently delete").clicked() {
                                         modals.pending_confirm = Some(ConfirmAction::PermanentDelete(file.path.clone(), file.size));
                                     }
-
-                                    ui.add_space(8.0);
                                 });
                             });
                         }

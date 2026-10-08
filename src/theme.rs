@@ -130,11 +130,12 @@ impl AppTheme {
         visuals.widgets.active.rounding = Rounding::same(6.0_f32);
         visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
 
-        // 5. Distinct Table Stripes (NEVER SOLID WHITE)
-        visuals.faint_bg_color = Color32::from_rgba_premultiplied(255, 255, 255, 8); // Subtle zebra stripe (3% alpha)
+        // 5. Distinct Table Stripes (Subtle Dark Tint #1e2230, Never Solid White)
+        visuals.faint_bg_color = Color32::from_rgb(30, 34, 48); // #1e2230
+        visuals.striped = true;
 
         visuals.override_text_color = Some(Color32::from_rgb(240, 244, 250));
-        visuals.selection.bg_fill = Color32::from_rgba_premultiplied(79, 110, 247, 80);
+        visuals.selection.bg_fill = Color32::from_rgb(46, 68, 130);
         visuals.selection.stroke = Stroke::new(1.0_f32, Color32::from_rgb(79, 110, 247));
         visuals.window_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
 
@@ -178,7 +179,8 @@ impl AppTheme {
         visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, t.accent);
         visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, Color32::WHITE);
 
-        visuals.selection.bg_fill = Color32::from_rgba_premultiplied(37, 99, 235, 40);
+        visuals.striped = true;
+        visuals.selection.bg_fill = Color32::from_rgb(219, 234, 254);
         visuals.selection.stroke = Stroke::new(1.0_f32, t.accent);
         visuals.window_stroke = Stroke::new(1.0_f32, t.border);
 
