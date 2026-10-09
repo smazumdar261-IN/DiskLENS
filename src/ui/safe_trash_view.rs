@@ -2,16 +2,19 @@ use crate::manage::{CleanupTargetCategory, StorageManager};
 use crate::models::format_size;
 use crate::theme::AppTheme;
 use crate::ui::modals::ModalManager;
-use eframe::egui::{self, Color32, Margin, RichText, Ui, Vec2};
+use crossbeam_channel::Receiver;
+use eframe::egui::{self, Color32, Margin, RichText, Ui};
 
 pub struct SafeTrashViewState {
     pub categories: Vec<CleanupTargetCategory>,
     pub expanded_category: Option<String>,
     pub is_loaded: bool,
+    pub is_loading: bool,
     pub is_cleaning: bool,
     pub cleanup_completed: bool,
     pub reclaimed_bytes: u64,
     pub is_dry_run: bool,
+    pub discovery_rx: Option<Receiver<Vec<CleanupTargetCategory>>>,
 }
 
 impl Default for SafeTrashViewState {
@@ -20,26 +23,52 @@ impl Default for SafeTrashViewState {
             categories: Vec::new(),
             expanded_category: None,
             is_loaded: false,
+            is_loading: false,
             is_cleaning: false,
             cleanup_completed: false,
             reclaimed_bytes: 0,
             is_dry_run: false,
+            discovery_rx: None,
         }
     }
 }
 
 impl SafeTrashViewState {
     pub fn ensure_loaded(&mut self) {
-        if !self.is_loaded {
-            self.refresh();
+        if !self.is_loaded && !self.is_loading {
+            self.trigger_background_discovery();
+        }
+    }
+
+    pub fn trigger_background_discovery(&mut self) {
+        if self.is_loading {
+            return;
+        }
+        self.is_loading = true;
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.discovery_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let categories = StorageManager::discover_cleanable_targets();
+            let _ = tx.send(categories);
+        });
+    }
+
+    pub fn poll_discovery(&mut self) {
+        if let Some(rx) = &self.discovery_rx {
+            if let Ok(categories) = rx.try_recv() {
+                self.expanded_category = categories.first().map(|c| c.id.clone());
+                self.categories = categories;
+                self.is_loaded = true;
+                self.is_loading = false;
+                self.discovery_rx = None;
+            }
         }
     }
 
     pub fn refresh(&mut self) {
-        self.categories = StorageManager::discover_cleanable_targets();
-        self.expanded_category = self.categories.first().map(|c| c.id.clone());
-        self.is_loaded = true;
         self.cleanup_completed = false;
+        self.trigger_background_discovery();
     }
 }
 
@@ -49,10 +78,51 @@ pub fn render_safe_trash_view(
     modals: &mut ModalManager,
     dark_mode: bool,
 ) {
+    state.poll_discovery();
     state.ensure_loaded();
     let t = AppTheme::tokens(dark_mode);
 
-    let total_all_possible: u64 = state.categories.iter().map(|c| c.items.iter().map(|i| i.size_bytes).sum::<u64>()).sum();
+    // Non-blocking loading screen for initial discovery
+    if state.is_loading && state.categories.is_empty() {
+        ui.ctx().request_repaint();
+
+        ui.vertical_centered(|ui| {
+            ui.add_space(80.0);
+            egui::Frame::none()
+                .fill(t.bg_elevated)
+                .rounding(8.0_f32)
+                .stroke(egui::Stroke::new(1.0_f32, t.border))
+                .inner_margin(Margin::same(24.0))
+                .show(ui, |ui| {
+                    ui.set_max_width(480.0);
+                    ui.vertical_centered(|ui| {
+                        ui.add(egui::Spinner::new().size(36.0).color(t.accent));
+                        ui.add_space(14.0);
+                        ui.label(RichText::new("Safe Trash & Storage Discovery").size(16.0).strong().color(t.text));
+                        ui.add_space(6.0);
+                        ui.label(
+                            RichText::new("Scanning application caches, package archives, and trash sandbox...")
+                                .size(11.5)
+                                .color(t.text_secondary),
+                        );
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new("Non-blocking background scan active — desktop remains 100% responsive")
+                                .size(10.0)
+                                .monospace()
+                                .color(t.text_muted),
+                        );
+                    });
+                });
+        });
+        return;
+    }
+
+    let total_all_possible: u64 = state
+        .categories
+        .iter()
+        .map(|c| c.items.iter().map(|i| i.size_bytes).sum::<u64>())
+        .sum();
     let total_selected: u64 = state
         .categories
         .iter()
@@ -74,7 +144,7 @@ pub fn render_safe_trash_view(
                 // 1. Top Banner: Safe Cleaner Overview
                 egui::Frame::none()
                     .fill(t.bg_elevated)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.success))
                     .inner_margin(Margin::same(16.0))
                     .show(ui, |ui| {
@@ -174,7 +244,7 @@ pub fn render_safe_trash_view(
                     ui.add_space(8.0);
                     egui::Frame::none()
                         .fill(t.bg_elevated)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, if state.is_dry_run { t.accent } else { t.success }))
                         .inner_margin(Margin::same(12.0))
                         .show(ui, |ui| {
@@ -239,7 +309,7 @@ pub fn render_safe_trash_view(
 
                     egui::Frame::none()
                         .fill(t.bg_container)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, if cat.is_selected { t.accent } else { t.border }))
                         .inner_margin(Margin::same(12.0))
                         .show(ui, |ui| {
@@ -279,28 +349,52 @@ pub fn render_safe_trash_view(
                                 ui.separator();
                                 ui.add_space(6.0);
 
-                                egui::Grid::new(format!("cat_grid_{}", cat.id))
+                                egui_extras::TableBuilder::new(ui)
                                     .striped(true)
-                                    .min_col_width(60.0)
-                                    .spacing(Vec2::new(10.0, 4.0))
-                                    .show(ui, |ui| {
-                                        ui.label(RichText::new("").size(10.0));
-                                        ui.label(RichText::new("TARGET PATH").size(10.0).strong().color(t.text_muted));
-                                        ui.label(RichText::new("AGE").size(10.0).strong().color(t.text_muted));
-                                        ui.label(RichText::new("SIZE").size(10.0).strong().color(t.text_muted));
-                                        ui.end_row();
-
+                                    .column(egui_extras::Column::exact(22.0))
+                                    .column(egui_extras::Column::remainder().clip(true))
+                                    .column(egui_extras::Column::exact(50.0))
+                                    .column(egui_extras::Column::exact(80.0))
+                                    .header(20.0, |mut header| {
+                                        header.col(|_ui| {});
+                                        header.col(|ui| {
+                                            ui.label(RichText::new("TARGET PATH").size(10.0).strong().color(t.text_muted));
+                                        });
+                                        header.col(|ui| {
+                                            ui.label(RichText::new("AGE").size(10.0).strong().color(t.text_muted));
+                                        });
+                                        header.col(|ui| {
+                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                ui.label(RichText::new("SIZE").size(10.0).strong().color(t.text_muted));
+                                            });
+                                        });
+                                    })
+                                    .body(|mut body| {
                                         for (item_idx, item) in cat.items.iter().enumerate() {
-                                            let mut item_rem = item.is_removable;
-                                            if ui.checkbox(&mut item_rem, "").changed() {
-                                                toggle_item_tuple = Some((cat.id.clone(), item_idx, item_rem));
-                                            }
-
-                                            let path_str = item.path.display().to_string();
-                                            ui.label(RichText::new(crate::theme::truncate_middle(&path_str, 36)).size(11.0).color(t.text));
-                                            ui.label(RichText::new(format!("{}d", item.age_days)).size(11.0).color(t.text_muted));
-                                            ui.label(RichText::new(format_size(item.size_bytes)).size(11.0).strong().color(t.accent));
-                                            ui.end_row();
+                                            body.row(22.0, |mut row| {
+                                                row.col(|ui| {
+                                                    let mut item_rem = item.is_removable;
+                                                    if ui.checkbox(&mut item_rem, "").changed() {
+                                                        toggle_item_tuple = Some((cat.id.clone(), item_idx, item_rem));
+                                                    }
+                                                });
+                                                row.col(|ui| {
+                                                    let path_str = item.path.display().to_string();
+                                                    let avail_w = ui.available_width();
+                                                    let max_c = (avail_w / 7.2) as usize;
+                                                    let display_str = crate::theme::truncate_middle(&path_str, max_c.clamp(20, 160));
+                                                    ui.add(egui::Label::new(RichText::new(display_str).size(11.0).color(t.text)).truncate())
+                                                        .on_hover_text(&path_str);
+                                                });
+                                                row.col(|ui| {
+                                                    ui.label(RichText::new(format!("{}d", item.age_days)).size(11.0).color(t.text_muted));
+                                                });
+                                                row.col(|ui| {
+                                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                        ui.label(RichText::new(format_size(item.size_bytes)).size(11.0).strong().color(t.accent));
+                                                    });
+                                                });
+                                            });
                                         }
                                     });
                             }

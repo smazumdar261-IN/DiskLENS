@@ -135,7 +135,7 @@ pub fn render_mounts_view(
                 // 1. Top Banner
                 egui::Frame::none()
                     .fill(t.bg_elevated)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.border))
                     .inner_margin(Margin::same(16.0))
                     .show(ui, |ui| {
@@ -201,7 +201,7 @@ pub fn render_mounts_view(
                 // 2. Linux Block Mounts Table
                 egui::Frame::none()
                     .fill(t.bg_container)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.border))
                     .inner_margin(Margin::same(12.0))
                     .show(ui, |ui| {
@@ -329,7 +329,7 @@ pub fn render_mounts_view(
                     ui.add_space(14.0);
                     egui::Frame::none()
                         .fill(t.bg_elevated)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, t.border))
                         .inner_margin(Margin::same(14.0))
                         .show(ui, |ui| {
@@ -346,7 +346,7 @@ pub fn render_mounts_view(
                             let sub_w = ((content_w - (8.0 * (cols as f32 - 1.0))) / cols as f32).floor();
 
                             for chunk in state.btrfs_subvolumes.chunks(cols) {
-                                ui.horizontal(|ui| {
+                                ui.horizontal_top(|ui| {
                                     ui.spacing_mut().item_spacing.x = 8.0;
                                     for (id, name, path, is_snapshot) in chunk {
                                         egui::Frame::none()

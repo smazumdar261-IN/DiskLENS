@@ -129,16 +129,16 @@ impl FileCategory {
 
     pub fn color(&self) -> Color32 {
         match self {
-            FileCategory::Videos => Color32::from_rgb(122, 162, 247),   // #7AA2F7 (Tokyo Blue)
+            FileCategory::Videos => Color32::from_rgb(122, 162, 247), // #7AA2F7 (Tokyo Blue)
             FileCategory::Archives => Color32::from_rgb(207, 201, 194), // #CFC9C2 (Warm Gray)
-            FileCategory::Images => Color32::from_rgb(187, 154, 247),   // #BB9AF7 (Purple)
-            FileCategory::Code => Color32::from_rgb(115, 218, 202),     // #73DACA (Cyan)
-            FileCategory::Documents => Color32::from_rgb(224, 175, 104),// #E0AF68 (Amber)
-            FileCategory::Audio => Color32::from_rgb(247, 118, 142),    // #F7768E (Coral Red)
-            FileCategory::DiskImages => Color32::from_rgb(42, 195, 222),// #2AC3DE (Teal)
+            FileCategory::Images => Color32::from_rgb(187, 154, 247), // #BB9AF7 (Purple)
+            FileCategory::Code => Color32::from_rgb(115, 218, 202),   // #73DACA (Cyan)
+            FileCategory::Documents => Color32::from_rgb(224, 175, 104), // #E0AF68 (Amber)
+            FileCategory::Audio => Color32::from_rgb(247, 118, 142),  // #F7768E (Coral Red)
+            FileCategory::DiskImages => Color32::from_rgb(42, 195, 222), // #2AC3DE (Teal)
             FileCategory::SystemConfig => Color32::from_rgb(137, 221, 255), // #89DDFF (Sky)
             FileCategory::Executables => Color32::from_rgb(236, 72, 153), // #EC4899 (Pink)
-            FileCategory::Other => Color32::from_rgb(121, 130, 169),    // #7982A9 (Muted Slate)
+            FileCategory::Other => Color32::from_rgb(121, 130, 169),  // #7982A9 (Muted Slate)
         }
     }
 
@@ -207,12 +207,7 @@ pub struct FileNode {
 
 impl FileNode {
     /// Convenience constructor with standard metadata (allocated_size = size, single link).
-    pub fn new_file(
-        name: String,
-        path: PathBuf,
-        size: u64,
-        modified: Option<SystemTime>,
-    ) -> Self {
+    pub fn new_file(name: String, path: PathBuf, size: u64, modified: Option<SystemTime>) -> Self {
         Self::new_file_extended(name, path, size, size, modified, None, None, 1, None)
     }
 
@@ -372,6 +367,28 @@ impl FileNode {
         false
     }
 
+    pub fn rename_path(&mut self, from: &Path, to: &Path, new_name: &str) -> bool {
+        if self.path == from {
+            self.path = to.to_path_buf();
+            self.name = new_name.to_string();
+            return true;
+        }
+
+        for child in &mut self.children {
+            if child.path == from {
+                child.path = to.to_path_buf();
+                child.name = new_name.to_string();
+                return true;
+            } else if child.is_dir && from.starts_with(&child.path) {
+                if child.rename_path(from, to, new_name) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     pub fn recalculate_stats(&mut self) {
         self.size = self.children.iter().map(|c| c.size).sum();
         self.allocated_size = self.children.iter().map(|c| c.allocated_size).sum();
@@ -411,7 +428,8 @@ impl FileNode {
             let risk_note = if is_cache_or_temp {
                 "Application temporary cache. Safe to clean if regenerated.".to_string()
             } else if is_review_needed {
-                "Large standalone media / disk payload. Review contents before moving to trash.".to_string()
+                "Large standalone media / disk payload. Review contents before moving to trash."
+                    .to_string()
             } else {
                 "Standard user data or system dependency.".to_string()
             };
@@ -441,7 +459,10 @@ impl FileNode {
 
     /// Collects all hardlink groups in the tree.
     /// Returns a map of InodeKey -> list of file nodes sharing that inode.
-    pub fn collect_hardlink_groups<'a>(&'a self, groups: &mut HashMap<InodeKey, Vec<&'a FileNode>>) {
+    pub fn collect_hardlink_groups<'a>(
+        &'a self,
+        groups: &mut HashMap<InodeKey, Vec<&'a FileNode>>,
+    ) {
         if !self.is_dir {
             if let Some(key) = self.inode_key() {
                 if self.nlink > 1 {
@@ -885,14 +906,16 @@ impl AnalysisCache {
 
         let mut extension_summaries: Vec<ExtensionSummary> = ext_stats
             .into_iter()
-            .map(|(ext, (count, app_size, alloc_size, cat))| ExtensionSummary {
-                extension: ext,
-                count,
-                total_size: app_size,
-                total_allocated_size: alloc_size,
-                category: cat,
-                percentage: (app_size as f32 / total_apparent_size as f32) * 100.0,
-            })
+            .map(
+                |(ext, (count, app_size, alloc_size, cat))| ExtensionSummary {
+                    extension: ext,
+                    count,
+                    total_size: app_size,
+                    total_allocated_size: alloc_size,
+                    category: cat,
+                    percentage: (app_size as f32 / total_apparent_size as f32) * 100.0,
+                },
+            )
             .collect();
         extension_summaries.sort_by(|a, b| b.total_size.cmp(&a.total_size));
 

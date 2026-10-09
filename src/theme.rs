@@ -54,42 +54,42 @@ impl AppTheme {
         if dark_mode {
             // Tokyo Night & Catppuccin Macchiato High Contrast Palette
             ThemeTokens {
-                bg_base: Color32::from_rgb(18, 20, 29),       // Deep Charcoal Navy (#12141D)
-                bg_surface: Color32::from_rgb(24, 27, 38),    // Elevated Card Background (#181B26)
-                bg_elevated: Color32::from_rgb(33, 38, 54),   // Interactive buttons/chips (#212636)
-                bg_container: Color32::from_rgb(24, 27, 38),  // Elevated Card Background
-                bg_input: Color32::from_rgb(12, 14, 20),      // Darker Input & Inset wells (#0C0E14)
-                border: Color32::from_rgb(46, 54, 76),        // Crisp border (#2E364C)
+                bg_base: Color32::from_rgb(18, 20, 29), // Deep Charcoal Navy (#12141D)
+                bg_surface: Color32::from_rgb(24, 27, 38), // Elevated Card Background (#181B26)
+                bg_elevated: Color32::from_rgb(33, 38, 54), // Interactive buttons/chips (#212636)
+                bg_container: Color32::from_rgb(24, 27, 38), // Elevated Card Background
+                bg_input: Color32::from_rgb(12, 14, 20), // Darker Input & Inset wells (#0C0E14)
+                border: Color32::from_rgb(46, 54, 76),  // Crisp border (#2E364C)
                 border_subtle: Color32::from_rgb(36, 42, 60), // Subtle inner border (#242A3C)
-                text: Color32::from_rgb(240, 244, 250),       // Primary Text: Crisp Off-White (WCAG AA)
+                text: Color32::from_rgb(240, 244, 250), // Primary Text: Crisp Off-White (WCAG AA)
                 text_secondary: Color32::from_rgb(185, 196, 212), // Readable secondary slate
                 text_muted: Color32::from_rgb(160, 174, 192), // Clean readable slate gray (#A0AEC0)
-                accent: Color32::from_rgb(79, 110, 247),      // Vibrant Blue Accent (#4F6EF7)
-                success: Color32::from_rgb(74, 222, 128),     // Crisp Emerald Green (#4ADE80)
-                warning: Color32::from_rgb(251, 191, 36),     // Amber Warning (#FBBF24)
-                danger: Color32::from_rgb(248, 113, 113),     // Coral Red (#F87171)
-                purple: Color32::from_rgb(192, 132, 252),     // Lavender Purple (#C084FC)
-                cyan: Color32::from_rgb(56, 189, 248),        // Sky Blue / Cyan (#38BDF8)
+                accent: Color32::from_rgb(79, 110, 247), // Vibrant Blue Accent (#4F6EF7)
+                success: Color32::from_rgb(74, 222, 128), // Crisp Emerald Green (#4ADE80)
+                warning: Color32::from_rgb(251, 191, 36), // Amber Warning (#FBBF24)
+                danger: Color32::from_rgb(248, 113, 113), // Coral Red (#F87171)
+                purple: Color32::from_rgb(192, 132, 252), // Lavender Purple (#C084FC)
+                cyan: Color32::from_rgb(56, 189, 248),  // Sky Blue / Cyan (#38BDF8)
             }
         } else {
-            // Modern Slate Light Palette
+            // Modern Slate Light Palette - Rich, Vibrant & High Contrast
             ThemeTokens {
-                bg_base: Color32::from_rgb(248, 250, 252),    // #F8FAFC
-                bg_surface: Color32::from_rgb(255, 255, 255), // #FFFFFF
-                bg_elevated: Color32::from_rgb(255, 255, 255),// #FFFFFF
-                bg_container: Color32::from_rgb(241, 245, 249),// #F1F5F9
-                bg_input: Color32::from_rgb(248, 250, 252),   // #F8FAFC
-                border: Color32::from_rgb(226, 232, 240),     // #E2E8F0
-                border_subtle: Color32::from_rgb(203, 213, 225),// #CBD5E1
-                text: Color32::from_rgb(15, 23, 42),          // #0F172A
-                text_secondary: Color32::from_rgb(71, 85, 105), // #475569
-                text_muted: Color32::from_rgb(100, 116, 139), // #64748B
-                accent: Color32::from_rgb(37, 99, 235),       // #2563EB
-                success: Color32::from_rgb(22, 163, 74),      // #16A34A
-                warning: Color32::from_rgb(217, 119, 6),      // #D97706
-                danger: Color32::from_rgb(220, 38, 38),       // #DC2626
-                purple: Color32::from_rgb(147, 51, 234),      // #9333EA
-                cyan: Color32::from_rgb(13, 148, 136),        // #0D9488
+                bg_base: Color32::from_rgb(243, 246, 251), // Crisp soft cool gray (#F3F6FB)
+                bg_surface: Color32::from_rgb(255, 255, 255), // Pure clean white (#FFFFFF)
+                bg_elevated: Color32::from_rgb(248, 250, 254), // Light clean elevation (#F8FAFE)
+                bg_container: Color32::from_rgb(243, 246, 252), // Clean container card background (#F3F6FC)
+                bg_input: Color32::from_rgb(238, 242, 248),     // Slightly recessed well (#EEF2F8)
+                border: Color32::from_rgb(219, 226, 239),       // Crisp border (#DBE2EF)
+                border_subtle: Color32::from_rgb(228, 233, 242), // Subtle border (#E4E9F2)
+                text: Color32::from_rgb(15, 23, 42), // Deep Obsidian Slate (WCAG AAA - 13:1 contrast against white)
+                text_secondary: Color32::from_rgb(51, 65, 85), // Rich dark slate (#334155 - 8.5:1 contrast)
+                text_muted: Color32::from_rgb(71, 85, 105), // Legible medium slate (#475569 - 5.5:1 contrast)
+                accent: Color32::from_rgb(37, 99, 235),     // Vivid Electric Cobalt (#2563EB)
+                success: Color32::from_rgb(16, 149, 69),    // Vivid Emerald Green (#109545)
+                warning: Color32::from_rgb(217, 119, 6),    // Vivid Amber/Bronze (#D97706)
+                danger: Color32::from_rgb(220, 38, 38),     // Vivid Crimson Red (#DC2626)
+                purple: Color32::from_rgb(126, 34, 206),    // Vivid Royal Purple (#7E22CE)
+                cyan: Color32::from_rgb(14, 116, 144),      // Vivid Ocean Cyan (#0E7490)
             }
         }
     }
@@ -98,8 +98,8 @@ impl AppTheme {
         let mut visuals = Visuals::dark();
 
         // 1. Clear Surface Contrast
-        visuals.panel_fill = Color32::from_rgb(18, 20, 29);       // Deep Charcoal Navy
-        visuals.window_fill = Color32::from_rgb(24, 27, 38);      // Elevated Card Background
+        visuals.panel_fill = Color32::from_rgb(18, 20, 29); // Deep Charcoal Navy
+        visuals.window_fill = Color32::from_rgb(24, 27, 38); // Elevated Card Background
         visuals.extreme_bg_color = Color32::from_rgb(12, 14, 20); // Darker Input & Inset wells
 
         // 2. High-Contrast Typography (WCAG AA Compliant)
@@ -109,7 +109,8 @@ impl AppTheme {
         );
         visuals.widgets.noninteractive.bg_fill = Color32::from_rgb(24, 27, 38);
         visuals.widgets.noninteractive.rounding = Rounding::same(6.0_f32);
-        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
+        visuals.widgets.noninteractive.bg_stroke =
+            Stroke::new(1.0_f32, Color32::from_rgb(46, 54, 76));
 
         // 3. Readable Secondary & Muted Text
         let _muted_text_color = Color32::from_rgb(160, 174, 192); // Clean readable slate gray
@@ -144,6 +145,10 @@ impl AppTheme {
         style.spacing.item_spacing = Vec2::new(8.0, 6.0);
         style.spacing.button_padding = Vec2::new(10.0, 5.0);
         style.spacing.window_margin = Margin::same(12.0);
+        style.spacing.scroll.bar_width = 5.0_f32;
+        style.spacing.scroll.handle_min_length = 24.0_f32;
+        style.spacing.scroll.bar_inner_margin = 1.0_f32;
+        style.spacing.scroll.bar_outer_margin = 1.0_f32;
 
         ctx.set_style(style);
     }
@@ -155,24 +160,24 @@ impl AppTheme {
         visuals.dark_mode = false;
         visuals.override_text_color = Some(t.text);
         visuals.window_fill = t.bg_base;
-        visuals.panel_fill = t.bg_surface;
-        visuals.faint_bg_color = Color32::from_rgb(241, 245, 249);
-        visuals.extreme_bg_color = t.bg_container;
+        visuals.panel_fill = t.bg_base;
+        visuals.faint_bg_color = Color32::from_rgb(238, 242, 249);
+        visuals.extreme_bg_color = t.bg_input;
 
-        visuals.widgets.noninteractive.bg_fill = t.bg_elevated;
+        visuals.widgets.noninteractive.bg_fill = t.bg_surface;
         visuals.widgets.noninteractive.rounding = Rounding::same(6.0_f32);
         visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, t.border);
         visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, t.text);
 
-        visuals.widgets.inactive.bg_fill = t.bg_container;
+        visuals.widgets.inactive.bg_fill = t.bg_elevated;
         visuals.widgets.inactive.rounding = Rounding::same(6.0_f32);
         visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, t.border);
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, t.text);
 
-        visuals.widgets.hovered.bg_fill = Color32::from_rgb(226, 232, 240);
+        visuals.widgets.hovered.bg_fill = Color32::from_rgb(224, 231, 255);
         visuals.widgets.hovered.rounding = Rounding::same(6.0_f32);
         visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, t.accent);
-        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, Color32::BLACK);
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, t.accent);
 
         visuals.widgets.active.bg_fill = t.accent;
         visuals.widgets.active.rounding = Rounding::same(6.0_f32);
@@ -189,6 +194,10 @@ impl AppTheme {
         style.spacing.item_spacing = Vec2::new(8.0, 6.0);
         style.spacing.button_padding = Vec2::new(10.0, 5.0);
         style.spacing.window_margin = Margin::same(12.0);
+        style.spacing.scroll.bar_width = 5.0_f32;
+        style.spacing.scroll.handle_min_length = 24.0_f32;
+        style.spacing.scroll.bar_inner_margin = 1.0_f32;
+        style.spacing.scroll.bar_outer_margin = 1.0_f32;
 
         ctx.set_style(style);
     }

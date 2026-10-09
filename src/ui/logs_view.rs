@@ -38,7 +38,7 @@ pub fn render_logs_view(
                 // 1. Top Banner & Filters
                 egui::Frame::none()
                     .fill(t.bg_elevated)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.border))
                     .inner_margin(Margin::same(16.0))
                     .show(ui, |ui| {
@@ -115,7 +115,7 @@ pub fn render_logs_view(
 
                 egui::Frame::none()
                     .fill(t.bg_container)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.border))
                     .inner_margin(Margin::same(12.0))
                     .show(ui, |ui| {

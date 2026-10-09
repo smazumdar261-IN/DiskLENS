@@ -15,11 +15,26 @@ fn test_01_fresh_application_launch_navigation_state() {
     assert!(app.session.analysis_cache.is_none());
 
     // Strict Rule: Analysis-dependent views MUST be disabled in State 1
-    assert!(!app.is_view_available(ActiveTab::Overview), "Overview must be disabled");
-    assert!(!app.is_view_available(ActiveTab::Treemap), "Treemap must be disabled");
-    assert!(!app.is_view_available(ActiveTab::DirectoryTree), "Folder Tree must be disabled");
-    assert!(!app.is_view_available(ActiveTab::LargestFiles), "Space Hogs must be disabled");
-    assert!(!app.is_view_available(ActiveTab::Categories), "File Types must be disabled");
+    assert!(
+        !app.is_view_available(ActiveTab::Overview),
+        "Overview must be disabled"
+    );
+    assert!(
+        !app.is_view_available(ActiveTab::Treemap),
+        "Treemap must be disabled"
+    );
+    assert!(
+        !app.is_view_available(ActiveTab::DirectoryTree),
+        "Folder Tree must be disabled"
+    );
+    assert!(
+        !app.is_view_available(ActiveTab::LargestFiles),
+        "Space Hogs must be disabled"
+    );
+    assert!(
+        !app.is_view_available(ActiveTab::Categories),
+        "File Types must be disabled"
+    );
 
     // System management and diagnostic views MUST remain available
     assert!(app.is_view_available(ActiveTab::Storage));
@@ -50,7 +65,13 @@ fn test_01_fresh_application_launch_navigation_state() {
 
 #[test]
 fn test_02_valid_target_selected_and_scanning_state() {
-    let temp_dir = std::env::temp_dir().join(format!("disklens_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let temp_dir = std::env::temp_dir().join(format!(
+        "disklens_test_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
     fs::create_dir_all(&temp_dir).expect("create tempdir");
     let test_file = temp_dir.join("sample.txt");
     fs::write(&test_file, b"test content").expect("write test file");
@@ -62,7 +83,10 @@ fn test_02_valid_target_selected_and_scanning_state() {
 
     assert!(app.session.is_scanning);
     assert!(app.session.analysis_state.is_scanning());
-    assert_eq!(app.session.analysis_state.target_path(), Some(temp_dir.as_path()));
+    assert_eq!(
+        app.session.analysis_state.target_path(),
+        Some(temp_dir.as_path())
+    );
 
     // While scanning, analysis data is not yet ready; dependent views MUST remain disabled
     assert!(!app.is_view_available(ActiveTab::Overview));
@@ -81,13 +105,20 @@ fn test_03_analysis_completed_successfully() {
     let mut app = DiskLensApp::default();
     let root_path = PathBuf::from("/test/dataset");
     let mut fake_root = FileNode::new_dir("dataset".to_string(), root_path.clone(), None);
-    fake_root.children.push(FileNode::new_file("a.dat".to_string(), root_path.join("a.dat"), 1024 * 1024, None));
+    fake_root.children.push(FileNode::new_file(
+        "a.dat".to_string(),
+        root_path.join("a.dat"),
+        1024 * 1024,
+        None,
+    ));
     fake_root.size = 1024 * 1024;
     fake_root.file_count = 1;
 
     // Simulate completion
     let cache = disk_lens::models::AnalysisCache::build(&fake_root);
-    app.session.analysis_state = AnalysisState::Ready { target_path: root_path.clone() };
+    app.session.analysis_state = AnalysisState::Ready {
+        target_path: root_path.clone(),
+    };
     app.session.scanned_root = Some(Box::new(fake_root));
     app.session.analysis_cache = Some(cache);
 
@@ -124,7 +155,10 @@ fn test_04_scan_failure_target_validation() {
     app.start_scan(nonexistent.clone());
 
     assert!(!app.session.is_scanning);
-    assert!(matches!(app.session.analysis_state, AnalysisState::Failed { .. }));
+    assert!(matches!(
+        app.session.analysis_state,
+        AnalysisState::Failed { .. }
+    ));
     assert!(app.session.scan_error.is_some());
     assert!(app.session.scanned_root.is_none());
     assert!(app.session.analysis_cache.is_none());
@@ -149,7 +183,9 @@ fn test_05_target_changed_invalidates_previous_state() {
     let fake_root_a = FileNode::new_dir("target_a".to_string(), root_path_a.clone(), None);
     let cache_a = disk_lens::models::AnalysisCache::build(&fake_root_a);
 
-    app.session.analysis_state = AnalysisState::Ready { target_path: root_path_a };
+    app.session.analysis_state = AnalysisState::Ready {
+        target_path: root_path_a,
+    };
     app.session.scanned_root = Some(Box::new(fake_root_a));
     app.session.analysis_cache = Some(cache_a);
     app.selected_tab = ActiveTab::Treemap;
@@ -157,13 +193,25 @@ fn test_05_target_changed_invalidates_previous_state() {
     assert!(app.is_view_available(ActiveTab::Treemap));
 
     // 2. User selects Target B
-    let temp_b = std::env::temp_dir().join(format!("disklens_test_b_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let temp_b = std::env::temp_dir().join(format!(
+        "disklens_test_b_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
     fs::create_dir_all(&temp_b).expect("create tempdir b");
     app.start_scan(temp_b.clone());
 
     // Previous analysis data MUST be invalidated immediately
-    assert!(app.session.scanned_root.is_none(), "Previous scanned_root must be invalidated");
-    assert!(app.session.analysis_cache.is_none(), "Previous analysis_cache must be invalidated");
+    assert!(
+        app.session.scanned_root.is_none(),
+        "Previous scanned_root must be invalidated"
+    );
+    assert!(
+        app.session.analysis_cache.is_none(),
+        "Previous analysis_cache must be invalidated"
+    );
     assert!(app.session.analysis_state.is_scanning());
 
     // Treemap and other views MUST be disabled again

@@ -1,104 +1,134 @@
-# 🔬 DiskLens - Native Rust Disk Space Analyzer for Linux / Ubuntu
+# DiskLens: High-Performance Linux Disk Space Analyzer
 
-**DiskLens** is a high-performance, 100% native Linux desktop GUI application written in **Rust** using `eframe`/`egui` with hardware-accelerated OpenGL / X11 / Wayland rendering. It provides rapid multi-threaded disk usage exploration, interactive visual treemaps, directory breakdowns, and safe storage cleanup.
-
----
-
-## 🌟 Key Features
-
-1. **📊 Interactive Squarified Treemap**
-   - Visualizes space usage with aspect-ratio-optimized squarified rectangles.
-   - **Click to Drill Down**: Zoom into any directory to analyze its subfolders.
-   - **Hover Inspection**: Instant tooltips with full file path, exact size, % share, and modification date.
-   - **Adjustable Detail**: Sliders to control visual treemap recursion depth (1–6 levels).
-
-2. **📁 Sortable Directory Breakdown Tree**
-   - Full hierarchy explorer with visual proportional usage bars.
-   - Sort by **Size**, **Name**, **Item Count**, **Type**, or **Modified Date**.
-   - Built-in search filtering and minimum size threshold filter.
-   - Breadcrumb bar for effortless navigation up/down the file tree.
-
-3. **⚡ Top Largest Files (Space Hog Finder)**
-   - Displays Top 50, 100, 250, 500, or 1000 largest files across the scanned hierarchy.
-   - Filter by file category (Videos, Images, Archives, Binaries, etc.) or custom search query.
-
-4. **🏷️ File Types & Extensions Distribution**
-   - Multi-colored space distribution bar.
-   - Category summary cards (Videos, Images, Archives, Code, Documents, Audio, etc.).
-   - Extension breakdown table with file count and total size percentages.
-
-5. **💾 Drives & Partitions Overview**
-   - Auto-detects all mounted storage devices, SSDs, HDDs, and partitions.
-   - Visual health and capacity gauges (<70% green, 70-85% warning, >85% critical).
-   - One-click **"Scan Drive"** button.
-
-6. **🛠️ File Management Actions & Context Menu**
-   - Right-click on any file or folder:
-     - 📂 **Open in File Manager** (Nautilus, Dolphin, Nemo, Thunar)
-     - 📄 **Open File** with default application
-     - 🖥️ **Open Terminal Here**
-     - 📋 **Copy Full Path** to clipboard
-     - 🗑️ **Move to Trash** (Safe deletion adhering to Freedesktop standards)
-     - 💥 **Permanent Delete** (with safety confirmation dialog)
-
-7. **⚡ Multi-Threaded Non-Blocking Scanner**
-   - Real-time live statistics: Scanned files, directories, throughput (items/sec), and elapsed time.
-   - **Pause**, **Resume**, and **Cancel** support.
-   - Handles symlinks and filesystem permission restrictions gracefully.
-
-8. **💾 Export Reports**
-   - Export full scan metadata to **JSON**.
-   - Export largest files to **CSV**.
-
-9. **🌙 Modern UI & Theming**
-   - Sleek Dark Mode (default) and Light Mode toggle.
+<p align="center">
+  <img src="https://img.shields.io/badge/Developed%20By-Sayantan%20Mazumdar-00ff66?style=for-the-badge&logo=matrix&logoColor=black" alt="Developed by Sayantan Mazumdar" />
+  <img src="https://img.shields.io/badge/Rust-2021%20Edition-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust 2021 Edition" />
+  <img src="https://img.shields.io/badge/Tests-33%20Passing-brightgreen?style=for-the-badge&logo=rust&logoColor=white" alt="Tests: 33 Passing" />
+  <img src="https://img.shields.io/badge/GUI-egui%200.30%20(60%20FPS)-blue?style=for-the-badge" alt="egui 0.30" />
+  <img src="https://img.shields.io/badge/Platform-Native%20Linux%20(Wayland%20%2F%20X11)-informational?style=for-the-badge&logo=linux&logoColor=white" alt="Linux Native" />
+  <img src="https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge&logo=gnu&logoColor=white" alt="License: GPLv3" />
+</p>
 
 ---
 
-## 🚀 How to Run
+## 🌟 Overview
 
-### Method 1: Application Menu (Ubuntu / Zorin / GNOME)
-Search for **"DiskLens"** in your application launcher / start menu and click to launch.
+**DiskLens** is a native, immediate-mode Linux disk space analyzer and storage reclamation suite built entirely in **safe Rust** with `eframe`/`egui`.
 
-### Method 2: Command Line (Direct Binary or Script)
+Developed by **Sayantan Mazumdar**, DiskLens is designed for speed, system isolation, and non-destructive reclamation:
+* **Sub-Second Multi-Core Crawling:** Parallel filesystem traversal powered by `rayon` work-stealing thread pools and optimized Linux `statx` system calls.
+* **Zero UI Latency:** Full immediate-mode architecture running on GPU hardware acceleration (Wayland & X11) at a constant 60 FPS.
+* **Non-Blocking Background Pipeline:** Large-scale storage audits, multi-core trash inspection, and SHA-256 duplicate hashing run in isolated background threads over `crossbeam-channel` rings—eliminating UI freezes and OS "Force Quit or Wait" stalls.
+* **Strict Linux Boundary Isolation:** Enforces `-xdev` mount boundary safety, preventing accidental scanning leaks across Btrfs subvolumes, mounted network shares (NFS/CIFS), or kernel pseudo-filesystems (`/proc`, `/sys`).
+* **Non-Destructive FreeDesktop Reclamation:** Compliant with FreeDesktop.org Trash specifications. Reclaimed items are safely relocated to `~/.local/share/Trash` with timestamped metadata rather than irreversible unlinking.
+
+---
+
+## 🚀 Key Capabilities
+
+### 1. 📊 Interactive Squarified Treemap
+* Proportional space allocation using the squarified treemap layout algorithm.
+* **Interactive Drill-Down:** Click on any block to zoom deep into nested directory hierarchies.
+* **Dynamic Breadcrumb Trail:** Instant upward and lateral navigation with single-click breadcrumbs.
+* **Depth & Threshold Sliders:** Fine-tune visible recursion depth and filter out trivial files.
+
+### 2. 🛡️ Non-Destructive Safe Trash Manager
+* Instant background categorization across user cache directories (`~/.cache/google-chrome`, `uv`, `electron`, `thumbnails`, etc.).
+* Non-blocking discovery thread prevents UI stutter even with hundreds of thousands of cached files.
+* Selective item inspection, batch purge, and safe FreeDesktop trash migration.
+
+### 3. 🔍 Cryptographic SHA-256 Duplicate Detector
+* Two-stage duplicate detection pipeline:
+  1. *Quick Sparse Size Binning:* Fast hash grouping of candidate files.
+  2. *Cryptographic Verification:* Multi-threaded byte-level SHA-256 validation to identify identical space hogs.
+
+### 4. 🩺 Kernel S.M.A.R.T. Drive Diagnostics
+* Telemetry extraction for NVMe, SATA, and SCSI drives.
+* Monitors temperature, reallocated sector counts, power-on hours, and overall hardware health percentages.
+
+### 5. 🖴 Mounts, Btrfs & Subvolume Explorer
+* Full visual mapping of Linux block devices, mount points, and Btrfs subvolumes.
+* Displays filesystem types (`ext4`, `btrfs`, `xfs`, `vfat`), available headroom, and mount flags (`rw`, `noatime`, `subvol`).
+
+### 6. 📈 Storage History & Growth Trends
+* Local storage delta tracking: records changes across rescan cycles.
+* Provides growth analytics and identifies fast-expanding directories over time.
+
+---
+
+## 🏗️ Architecture Pipeline
+
+```mermaid
+flowchart TD
+    A["Target Filesystem Path"] --> B["DefaultScanService\n(Multi-Threaded Rayon Pool)"]
+    B -->|crossbeam-channel| C["AnalysisSession Engine"]
+    C --> D1["Interactive Treemap\n(Squarified Layout Algorithm)"]
+    C --> D2["Directory Explorer\n(Sortable Inode Tree)"]
+    C --> D3["Space Hogs Engine\n(Top Largest Files)"]
+    C --> D4["Category Classifier\n(MIME & Extension Metrics)"]
+    C --> D5["Duplicate Analyzer\n(SHA-256 Two-Stage Hash)"]
+    C --> D6["Storage History Store\n(Delta Tracking & Growth)"]
+    D1 & D2 & D3 & D4 & D5 & D6 --> E["egui Immediate-Mode Renderer\n(60 FPS Hardware-Accelerated)"]
+    E --> F["Native Linux Desktop\n(Wayland / X11 CSD Window)"]
+```
+
+---
+
+## ⌨️ Universal Keyboard Shortcuts
+
+| Shortcut | Destination / Action |
+|---|---|
+| `Ctrl+K` | Open Global Command Palette & Quick Search |
+| `Alt+Left` / `Alt+Right` | Universal History Back / Forward Navigation |
+| `1` | Jump to **Overview** Dashboard |
+| `2` | Jump to **Duplicates** Finder (SHA-256) |
+| `3` | Jump to **Trash** Manager |
+| `4` | Jump to **History** & Growth |
+| `M` | Jump to **Volumes** & Mount Points |
+| `H` | Jump to **Drive Health** (S.M.A.R.T.) |
+| `L` | Jump to System **Logs** |
+| `D` | Jump to **About** Page |
+| `R` | Trigger Instant Rescan of Target Directory |
+| `T` | Toggle Dark / Day Theme Mode |
+| `,` or `S` | Open Settings & Exclusion Rules |
+| `Esc` | Dismiss Open Modals |
+
+---
+
+## 🛠️ Build & Installation
+
+### Prerequisites
+* **Rust**: 1.75+ (Cargo & rustc)
+* **Linux Graphics Libraries**:
+  ```bash
+  sudo apt install build-essential libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libwayland-dev
+  ```
+
+### Build from Source
 ```bash
-# Using the launcher script
-/home/sayantan/disk-analyzer-gui/run.sh
+# Clone the repository
+git clone https://github.com/smazumdar261-IN/DiskLens.git
+cd DiskLens
 
-# Or directly running the compiled release binary
-/home/sayantan/disk-analyzer-gui/target/release/disk-lens
+# Compile optimized release binary
+cargo build --release
+
+# Run DiskLens
+./target/release/disk-lens
 ```
 
-### Method 3: Development Run
+### Running the Test Suite
 ```bash
-cd /home/sayantan/disk-analyzer-gui
-cargo run --release
+cargo test --tests
 ```
+
+All 33 verification and integration tests execute in sub-second time.
 
 ---
 
-## 🏗️ Project Architecture
+## 👤 Author & Maintainer
 
-```
-disk-analyzer-gui/
-├── Cargo.toml                  # Rust dependencies & configuration
-├── run.sh                      # Quick launcher script
-├── README.md                   # Complete documentation
-└── src/
-    ├── main.rs                 # Native window initialization & entry point
-    ├── app.rs                  # Main application state, toolbar, tabs & loop
-    ├── models.rs               # FileNode tree, categories, progress & formatting
-    ├── scanner.rs              # Multi-threaded background scanning engine
-    ├── treemap.rs              # Squarified Treemap layout algorithm & color palette
-    ├── theme.rs                # Modern Dark & Light theme visuals
-    ├── actions.rs              # Linux desktop integrations (file manager, terminal, trash)
-    ├── export.rs               # JSON & CSV export functionality
-    └── ui/
-        ├── mod.rs
-        ├── treemap_view.rs     # Treemap canvas rendering & interactive zoom
-        ├── tree_view.rs        # Sortable directory table with usage bars
-        ├── largest_files_view.rs # Top largest files view & filters
-        ├── categories_view.rs  # Category cards & extension breakdown
-        ├── drives_view.rs      # System drives & partition usage gauges
-        └── modals.rs           # Confirmations, trash modals & toast alerts
-```
+* **Developer & Maintainer:** **Sayantan Mazumdar**
+* **GitHub:** [@smazumdar261-IN](https://github.com/smazumdar261-IN)
+* **Project:** DiskLens (Native Linux Storage Analyzer)
+* **License:** [GNU General Public License v3.0 (GPL-3.0)](LICENSE)

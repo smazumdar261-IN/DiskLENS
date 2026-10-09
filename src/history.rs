@@ -65,7 +65,8 @@ impl StorageHistoryManager {
             if let Ok(mut file) = File::open(&path) {
                 let mut contents = String::new();
                 if file.read_to_string(&mut contents).is_ok() {
-                    if let Ok(records) = serde_json::from_str::<Vec<ScanSnapshotRecord>>(&contents) {
+                    if let Ok(records) = serde_json::from_str::<Vec<ScanSnapshotRecord>>(&contents)
+                    {
                         return records;
                     }
                 }
@@ -77,14 +78,15 @@ impl StorageHistoryManager {
     pub fn save_snapshots(snapshots: &[ScanSnapshotRecord]) -> Result<(), String> {
         let path = Self::history_file_path();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create history dir: {}", e))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create history dir: {}", e))?;
         }
 
         let json = serde_json::to_string_pretty(snapshots)
             .map_err(|e| format!("Serialization error: {}", e))?;
 
-        let mut file = File::create(&path)
-            .map_err(|e| format!("Failed to write history file: {}", e))?;
+        let mut file =
+            File::create(&path).map_err(|e| format!("Failed to write history file: {}", e))?;
         file.write_all(json.as_bytes())
             .map_err(|e| format!("Failed to save history: {}", e))?;
 
@@ -146,9 +148,17 @@ impl StorageHistoryManager {
                 Some(prev) => {
                     let diff = current.total_size_bytes as i64 - prev.total_size_bytes as i64;
                     if diff > 0 {
-                        (diff, DeltaType::Increase, format!("+{}", format_size(diff as u64)))
+                        (
+                            diff,
+                            DeltaType::Increase,
+                            format!("+{}", format_size(diff as u64)),
+                        )
                     } else if diff < 0 {
-                        (diff, DeltaType::Decrease, format!("-{}", format_size((-diff) as u64)))
+                        (
+                            diff,
+                            DeltaType::Decrease,
+                            format!("-{}", format_size((-diff) as u64)),
+                        )
                     } else {
                         (0, DeltaType::Neutral, "0 B".to_string())
                     }

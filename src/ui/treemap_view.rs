@@ -32,6 +32,7 @@ pub fn render_treemap_view(
     active_tab: &mut ActiveTab,
     modals: &mut ModalManager,
     dark_mode: bool,
+    on_navigate_path: &mut dyn FnMut(PathBuf),
     _on_rescan: &mut dyn FnMut(PathBuf),
 ) {
     let t = AppTheme::tokens(dark_mode);
@@ -56,13 +57,13 @@ pub fn render_treemap_view(
                 // 1. Sticky Navigation Bar & Controls
                 egui::Frame::none()
                     .fill(t.bg_elevated)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.border))
                     .inner_margin(Margin::symmetric(10.0, 6.0))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            // Back to Overview button
-                            if ui.button(RichText::new("◀ Back to Overview").size(11.5).strong().color(t.accent)).on_hover_text("Return to Overview dashboard").clicked() {
+                            // Direct Jump to Overview Dashboard
+                            if ui.button(RichText::new("📊 Overview").size(11.0)).on_hover_text("Return to Overview dashboard").clicked() {
                                 *active_tab = ActiveTab::Overview;
                             }
 
@@ -76,8 +77,10 @@ pub fn render_treemap_view(
                             ).on_hover_text("Navigate to parent directory").clicked() {
                                 if let Some(parent) = state.current_path.parent() {
                                     if parent.starts_with(&root.path) || parent == root.path {
-                                        state.current_path = parent.to_path_buf();
+                                        let p = parent.to_path_buf();
+                                        state.current_path = p.clone();
                                         state.selected_item = None;
+                                        on_navigate_path(p);
                                     }
                                 }
                             }
@@ -89,6 +92,7 @@ pub fn render_treemap_view(
                             ).on_hover_text("Return to scan root").clicked() {
                                 state.current_path = root.path.clone();
                                 state.selected_item = None;
+                                on_navigate_path(root.path.clone());
                             }
 
                             ui.separator();
@@ -116,8 +120,9 @@ pub fn render_treemap_view(
                             }
 
                             if let Some(p) = clicked_crumb {
-                                state.current_path = p;
+                                state.current_path = p.clone();
                                 state.selected_item = None;
+                                on_navigate_path(p);
                             }
 
                             // Right controls: Depth slider
@@ -237,8 +242,10 @@ pub fn render_treemap_view(
 
         if let Some(item) = clicked_item {
             if item.is_dir {
-                state.current_path = item.path;
+                let p = item.path.clone();
+                state.current_path = p.clone();
                 state.selected_item = None;
+                on_navigate_path(p);
             } else {
                 state.selected_item = Some(item);
             }
@@ -250,7 +257,7 @@ pub fn render_treemap_view(
 
             egui::Frame::none()
                 .fill(t.bg_elevated)
-                .rounding(6.0_f32)
+                .rounding(8.0_f32)
                 .stroke(egui::Stroke::new(1.0_f32, t.border))
                 .inner_margin(Margin::same(12.0))
                 .show(ui, |ui| {
@@ -323,17 +330,29 @@ pub fn render_treemap_view(
                             ui.add_space(12.0);
 
                             // Action buttons
+                            if ui.add_sized([ui.available_width(), 26.0], egui::Button::new("👁 Quick Preview")).on_hover_text("Preview file content and metadata").clicked() {
+                                modals.pending_preview = Some(item.path.clone());
+                            }
+
+                            if ui.add_sized([ui.available_width(), 26.0], egui::Button::new("✏ Rename...")).on_hover_text("Rename this file or directory").clicked() {
+                                modals.pending_rename = Some((item.path.clone(), item.name.clone()));
+                            }
+
                             if item.is_dir {
-                                if ui.add_sized([ui.available_width(), 28.0], egui::Button::new("📂 Explore Node →")).clicked() {
+                                if ui.add_sized([ui.available_width(), 26.0], egui::Button::new("📂 Explore Node →")).clicked() {
                                     drill_down_path = Some(item.path.clone());
+                                }
+                            } else {
+                                if ui.add_sized([ui.available_width(), 26.0], egui::Button::new("📄 Open File")).clicked() {
+                                    let _ = FileActions::open_file(&item.path);
                                 }
                             }
 
-                            if ui.add_sized([ui.available_width(), 28.0], egui::Button::new("📁 Reveal in Folder Tree")).clicked() {
-                                *active_tab = ActiveTab::DirectoryTree;
+                            if ui.add_sized([ui.available_width(), 26.0], egui::Button::new("📁 Show in File Manager")).clicked() {
+                                let _ = FileActions::open_in_file_manager(&item.path);
                             }
 
-                            if ui.add_sized([ui.available_width(), 28.0], egui::Button::new(RichText::new("🗑 Move to Trash...").color(t.danger))).clicked() {
+                            if ui.add_sized([ui.available_width(), 26.0], egui::Button::new(RichText::new("🗑 Move to Trash...").color(t.danger))).clicked() {
                                 modals.pending_confirm = Some(ConfirmAction::MoveToTrash(item.path.clone(), item.size));
                             }
                         } else {
@@ -409,9 +428,7 @@ pub fn render_treemap_view(
     }
 
     if let Some(item) = right_clicked_item {
-        if ui.button("Open in File Manager").clicked() {
-            let _ = FileActions::open_in_file_manager(&item.path);
-        }
+        state.selected_item = Some(item);
     }
 
     ui.add_space(6.0);

@@ -48,7 +48,10 @@ fn test_analysis_session_lifecycle() {
     session.set_failed(target.clone(), "Permission Denied".to_string());
     assert!(!session.is_ready());
     assert_eq!(session.scan_error, Some("Permission Denied".to_string()));
-    assert!(matches!(session.analysis_state, AnalysisState::Failed { .. }));
+    assert!(matches!(
+        session.analysis_state,
+        AnalysisState::Failed { .. }
+    ));
 
     // 5. Invalidation
     session.invalidate();
@@ -114,7 +117,10 @@ fn test_scan_service_abstraction_and_app_injection() {
     // Pump UI loop / messages
     let ctx = egui::Context::default();
     let mut raw_input = egui::RawInput::default();
-    raw_input.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800.0, 600.0)));
+    raw_input.screen_rect = Some(egui::Rect::from_min_size(
+        egui::Pos2::ZERO,
+        egui::Vec2::new(800.0, 600.0),
+    ));
     let _ = ctx.run(raw_input, |ctx| {
         app.render_app_ui(ctx);
     });
@@ -137,5 +143,8 @@ fn test_overview_action_purity_and_dispatch() {
     // 2. Test File System Action via Intent
     let test_file = PathBuf::from("/test/file.mp4");
     app.handle_overview_action(OverviewAction::OpenInFileManager(test_file.clone()));
-    assert_eq!(mock_fs.opened_paths.lock().unwrap().as_slice(), &[test_file]);
+    assert_eq!(
+        mock_fs.opened_paths.lock().unwrap().as_slice(),
+        &[test_file]
+    );
 }

@@ -27,7 +27,8 @@ pub fn render_history_view(
     let t = AppTheme::tokens(dark_mode);
     let target_path = root.map(|r| r.path.as_path());
     let history_items = StorageHistoryManager::get_history_items(target_path);
-    let (largest_growth, shrinking_areas) = StorageHistoryManager::compute_growth_insights(target_path);
+    let (largest_growth, shrinking_areas) =
+        StorageHistoryManager::compute_growth_insights(target_path);
 
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -93,7 +94,7 @@ fn render_responsive_chart_card(
 ) {
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
@@ -101,7 +102,12 @@ fn render_responsive_chart_card(
             ui.set_width(inner_w);
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("📈 Usage Trend Over Time").size(12.5).strong().color(t.text));
+                ui.label(
+                    RichText::new("📈 Usage Trend Over Time")
+                        .size(12.5)
+                        .strong()
+                        .color(t.text),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
                         RichText::new(format!("{} recorded sessions", history_items.len()))
@@ -117,9 +123,11 @@ fn render_responsive_chart_card(
             ui.add_space(6.0);
 
             let chart_h = 220.0_f32;
-            let (chart_rect, response) = ui.allocate_exact_size(Vec2::new(inner_w, chart_h), Sense::hover());
+            let (chart_rect, response) =
+                ui.allocate_exact_size(Vec2::new(inner_w, chart_h), Sense::hover());
             ui.painter().rect_filled(chart_rect, 4.0_f32, t.bg_surface);
-            ui.painter().rect_stroke(chart_rect, 4.0_f32, Stroke::new(1.0_f32, t.border));
+            ui.painter()
+                .rect_stroke(chart_rect, 4.0_f32, Stroke::new(1.0_f32, t.border));
 
             if history_items.is_empty() {
                 ui.painter().text(
@@ -132,7 +140,12 @@ fn render_responsive_chart_card(
                 return;
             }
 
-            let max_size: u64 = history_items.iter().map(|h| h.total_size_bytes).max().unwrap_or(100).max(1);
+            let max_size: u64 = history_items
+                .iter()
+                .map(|h| h.total_size_bytes)
+                .max()
+                .unwrap_or(100)
+                .max(1);
             let point_count = history_items.len();
             let padding_x = 35.0_f32;
             let usable_w = (chart_rect.width() - (padding_x * 2.0)).max(10.0);
@@ -154,7 +167,10 @@ fn render_responsive_chart_card(
             for i in 1..=3 {
                 let gy = chart_rect.max.y - 28.0 - (i as f32 * (chart_h - 52.0) / 4.0);
                 ui.painter().line_segment(
-                    [Pos2::new(chart_rect.min.x + 8.0, gy), Pos2::new(chart_rect.max.x - 8.0, gy)],
+                    [
+                        Pos2::new(chart_rect.min.x + 8.0, gy),
+                        Pos2::new(chart_rect.max.x - 8.0, gy),
+                    ],
                     Stroke::new(1.0_f32, t.border.gamma_multiply(0.6)),
                 );
             }
@@ -162,7 +178,8 @@ fn render_responsive_chart_card(
             // Draw area gradient/polygon below trend line
             if points.len() >= 2 {
                 for pair in points.windows(2) {
-                    ui.painter().line_segment([pair[0], pair[1]], Stroke::new(2.5_f32, t.accent));
+                    ui.painter()
+                        .line_segment([pair[0], pair[1]], Stroke::new(2.5_f32, t.accent));
                 }
             }
 
@@ -178,11 +195,13 @@ fn render_responsive_chart_card(
                 let dot_rad = if is_hovered { 6.0 } else { 3.5 };
                 let dot_col = if is_hovered { t.cyan } else { t.accent };
                 ui.painter().circle_filled(*pt, dot_rad, dot_col);
-                ui.painter().circle_stroke(*pt, dot_rad, Stroke::new(1.0_f32, Color32::WHITE));
+                ui.painter()
+                    .circle_stroke(*pt, dot_rad, Stroke::new(1.0_f32, Color32::WHITE));
 
                 if let Some(item) = history_items.iter().rev().nth(idx) {
                     if is_hovered {
-                        hovered_item_info = Some((item.date.clone(), item.total_size_formatted.clone(), *pt));
+                        hovered_item_info =
+                            Some((item.date.clone(), item.total_size_formatted.clone(), *pt));
                     }
 
                     // Decimated date labeling: render if aligned with step or last point
@@ -204,7 +223,10 @@ fn render_responsive_chart_card(
             if let Some((date, size, pt)) = hovered_item_info {
                 state.hovered_point = Some((date.clone(), size.clone(), pt));
                 let tooltip_text = format!("{} • {}", date, size);
-                let tooltip_pos = Pos2::new(pt.x.clamp(chart_rect.min.x + 60.0, chart_rect.max.x - 60.0), pt.y - 16.0);
+                let tooltip_pos = Pos2::new(
+                    pt.x.clamp(chart_rect.min.x + 60.0, chart_rect.max.x - 60.0),
+                    pt.y - 16.0,
+                );
                 ui.painter().text(
                     tooltip_pos,
                     egui::Align2::CENTER_BOTTOM,
@@ -225,24 +247,28 @@ fn render_growth_insights_section(
     t: &crate::theme::ThemeTokens,
 ) {
     let is_wide = avail_w >= 800.0;
-    let spacing = 10.0_f32;
-    let col_w = if is_wide {
-        ((avail_w - spacing) / 2.0).floor()
-    } else {
-        avail_w
-    };
-
     if is_wide {
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = spacing;
-            render_insight_tile(ui, "📈 Expanding Directories", largest_growth, t.danger, col_w, t);
-            render_insight_tile(ui, "📉 Shrinking Areas", shrinking_areas, t.success, col_w, t);
+        ui.columns(2, |cols| {
+            render_insight_tile(
+                &mut cols[0],
+                "📈 Expanding Directories",
+                largest_growth,
+                t.danger,
+                t,
+            );
+            render_insight_tile(
+                &mut cols[1],
+                "📉 Shrinking Areas",
+                shrinking_areas,
+                t.success,
+                t,
+            );
         });
     } else {
         ui.vertical(|ui| {
-            render_insight_tile(ui, "📈 Expanding Directories", largest_growth, t.danger, col_w, t);
+            render_insight_tile(ui, "📈 Expanding Directories", largest_growth, t.danger, t);
             ui.add_space(8.0);
-            render_insight_tile(ui, "📉 Shrinking Areas", shrinking_areas, t.success, col_w, t);
+            render_insight_tile(ui, "📉 Shrinking Areas", shrinking_areas, t.success, t);
         });
     }
 }
@@ -252,22 +278,26 @@ fn render_insight_tile(
     title: &str,
     items: &[GrowthInsightItem],
     badge_color: Color32,
-    width: f32,
     t: &crate::theme::ThemeTokens,
 ) {
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
-            let inner_w = (width - 24.0).max(60.0);
+            let inner_w = ui.available_width().max(60.0);
             ui.set_width(inner_w);
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new(title).size(12.0).strong().color(badge_color));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(format!("{} areas", items.len())).size(10.0).monospace().color(t.text_muted));
+                    ui.label(
+                        RichText::new(format!("{} areas", items.len()))
+                            .size(10.0)
+                            .monospace()
+                            .color(t.text_muted),
+                    );
                 });
             });
 
@@ -276,20 +306,36 @@ fn render_insight_tile(
             ui.add_space(4.0);
 
             if items.is_empty() {
-                ui.label(RichText::new("No significant directory changes recorded in this range.").size(10.5).color(t.text_muted));
+                ui.add(
+                    egui::Label::new(
+                        RichText::new("No significant directory changes recorded in this range.")
+                            .size(10.5)
+                            .color(t.text_muted),
+                    )
+                    .wrap(),
+                );
             } else {
                 for item in items.iter().take(5) {
                     ui.horizontal(|ui| {
-                        let name_avail = (inner_w - 90.0).max(40.0);
+                        let change_text = &item.change_formatted;
+                        let change_w = 70.0;
+                        let name_avail = (inner_w - change_w - 20.0).max(40.0);
                         let max_c = (name_avail / 7.5) as usize;
-                        let trunc_name = truncate_middle(&item.path, max_c.clamp(10, 36));
+                        let trunc_name = truncate_middle(&item.path, max_c.clamp(10, 40));
                         ui.add(
                             egui::Label::new(RichText::new(trunc_name).size(11.0).color(t.text))
                                 .truncate(),
-                        ).on_hover_text(&item.path);
+                        )
+                        .on_hover_text(&item.path);
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(RichText::new(&item.change_formatted).size(11.0).monospace().strong().color(badge_color));
+                            ui.label(
+                                RichText::new(change_text)
+                                    .size(11.0)
+                                    .monospace()
+                                    .strong()
+                                    .color(badge_color),
+                            );
                         });
                     });
                     ui.add_space(2.0);
@@ -307,7 +353,7 @@ fn render_snapshot_history_table(
 ) {
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {

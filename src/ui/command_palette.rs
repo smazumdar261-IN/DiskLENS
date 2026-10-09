@@ -202,9 +202,9 @@ pub fn render_command_palette(
         },
         CommandPaletteItem {
             id: "docs".to_string(),
-            title: "View DiskLens Guide, Philosophy & Keyboard Shortcuts".to_string(),
+            title: "About DiskLens — Architecture, Telemetry & Shortcuts".to_string(),
             category: "Engine & System".to_string(),
-            icon: "📖".to_string(),
+            icon: "ℹ".to_string(),
             shortcut: Some("D".to_string()),
             target_tab: Some(ActiveTab::Documentation),
         },
@@ -257,20 +257,42 @@ pub fn render_command_palette(
                     "browse-folder" => {
                         chosen_action = Some(CommandAction::OpenDirPicker);
                     }
-                    "nav-storage" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Storage)),
-                    "nav-overview" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Overview)),
-                    "nav-treemap" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Treemap)),
-                    "nav-tree" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::DirectoryTree)),
-                    "nav-hogs" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::LargestFiles)),
-                    "nav-categories" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Categories)),
-                    "nav-duplicates" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Duplicates)),
-                    "nav-safe-trash" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::SafeTrash)),
+                    "nav-storage" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Storage))
+                    }
+                    "nav-overview" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Overview))
+                    }
+                    "nav-treemap" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Treemap))
+                    }
+                    "nav-tree" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::DirectoryTree))
+                    }
+                    "nav-hogs" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::LargestFiles))
+                    }
+                    "nav-categories" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Categories))
+                    }
+                    "nav-duplicates" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::Duplicates))
+                    }
+                    "nav-safe-trash" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::SafeTrash))
+                    }
                     "clean-dry-run" => chosen_action = Some(CommandAction::TriggerDryRunClean),
-                    "nav-history" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::History)),
+                    "nav-history" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::History))
+                    }
                     "nav-mounts" => chosen_action = Some(CommandAction::OpenMounts),
-                    "nav-smart" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::DiagnosticsSmart)),
+                    "nav-smart" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::DiagnosticsSmart))
+                    }
                     "nav-logs" => chosen_action = Some(CommandAction::OpenLogs),
-                    "nav-engine" => chosen_action = Some(CommandAction::SwitchTab(ActiveTab::RustEngine)),
+                    "nav-engine" => {
+                        chosen_action = Some(CommandAction::SwitchTab(ActiveTab::RustEngine))
+                    }
                     "settings" => chosen_action = Some(CommandAction::OpenSettings),
                     "toggle-theme" => chosen_action = Some(CommandAction::ToggleTheme),
                     "docs" => chosen_action = Some(CommandAction::OpenDocs),

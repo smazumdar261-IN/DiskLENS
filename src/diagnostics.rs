@@ -42,7 +42,10 @@ impl DiagnosticsManager {
                 let dev_name = entry.file_name().to_string_lossy().to_string();
 
                 // Skip virtual loop, ram, and dm devices
-                if dev_name.starts_with("loop") || dev_name.starts_with("ram") || dev_name.starts_with("zram") {
+                if dev_name.starts_with("loop")
+                    || dev_name.starts_with("ram")
+                    || dev_name.starts_with("zram")
+                {
                     continue;
                 }
 
@@ -115,7 +118,9 @@ impl DiagnosticsManager {
                 integrity_errors: 0,
                 smart_status: "PASSED".to_string(),
                 attributes: Vec::new(),
-                status_note: "Root device active. Genuine S.M.A.R.T. queries require physical device access.".to_string(),
+                status_note:
+                    "Root device active. Genuine S.M.A.R.T. queries require physical device access."
+                        .to_string(),
             });
         }
 
@@ -123,7 +128,10 @@ impl DiagnosticsManager {
     }
 
     fn read_sys_string(path: &Path) -> Option<String> {
-        fs::read_to_string(path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+        fs::read_to_string(path)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
     }
 
     /// Reads genuine device temperature from hwmon
@@ -178,9 +186,12 @@ impl DiagnosticsManager {
                     4192,
                     0,
                     attributes,
-                    "Hardware S.M.A.R.T. self-assessment test: PASSED (0 uncorrected errors)".to_string(),
+                    "Hardware S.M.A.R.T. self-assessment test: PASSED (0 uncorrected errors)"
+                        .to_string(),
                 );
-            } else if stderr.contains("Permission denied") || stderr.contains("Operation not permitted") {
+            } else if stderr.contains("Permission denied")
+                || stderr.contains("Operation not permitted")
+            {
                 return (
                     100,
                     "REQUIRES_ROOT".to_string(),
@@ -189,7 +200,9 @@ impl DiagnosticsManager {
                     Vec::new(),
                     "S.M.A.R.T. direct device queries require root privileges. Run DiskLens or smartctl with sudo/polkit for detailed registers.".to_string(),
                 );
-            } else if stderr.contains("Unavailable") || stdout.contains("Device does not support SMART") {
+            } else if stderr.contains("Unavailable")
+                || stdout.contains("Device does not support SMART")
+            {
                 return (
                     100,
                     "UNSUPPORTED".to_string(),
@@ -265,7 +278,8 @@ impl DiagnosticsManager {
             4192,
             0,
             default_attrs,
-            "Kernel block layer reporting healthy I/O submission queues with zero media errors.".to_string(),
+            "Kernel block layer reporting healthy I/O submission queues with zero media errors."
+                .to_string(),
         )
     }
 

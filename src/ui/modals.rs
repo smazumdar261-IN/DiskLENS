@@ -12,28 +12,48 @@ pub enum ConfirmAction {
 
 pub struct ModalManager {
     pub pending_confirm: Option<ConfirmAction>,
+    pub pending_rename: Option<(PathBuf, String)>,
+    pub pending_preview: Option<PathBuf>,
     pub is_dir_picker_open: bool,
     pub is_mount_points_open: bool,
     pub is_system_logs_open: bool,
     pub is_docs_open: bool,
     pub toast_message: Option<(String, bool, std::time::Instant)>, // (msg, is_error, timestamp)
-    pub log_messages: Vec<(String, String, String)>, // (timestamp, level, message)
+    pub log_messages: Vec<(String, String, String)>,               // (timestamp, level, message)
     pub custom_dir_path: String,
 }
 
 impl ModalManager {
     pub fn new() -> Self {
         let default_logs = vec![
-            ("14:22:01".to_string(), "INFO".to_string(), "DiskLens engine initialized on Linux x86_64".to_string()),
-            ("14:22:01".to_string(), "INFO".to_string(), "Rayon thread pool configured with 16 worker threads".to_string()),
-            ("14:22:02".to_string(), "DEBUG".to_string(), "Enumerated kernel mounts via /proc/mounts".to_string()),
-            ("14:22:02".to_string(), "INFO".to_string(), "Wayland wgpu surface created (144 Hz refresh target)".to_string()),
+            (
+                "14:22:01".to_string(),
+                "INFO".to_string(),
+                "DiskLens engine initialized on Linux x86_64".to_string(),
+            ),
+            (
+                "14:22:01".to_string(),
+                "INFO".to_string(),
+                "Rayon thread pool configured with 16 worker threads".to_string(),
+            ),
+            (
+                "14:22:02".to_string(),
+                "DEBUG".to_string(),
+                "Enumerated kernel mounts via /proc/mounts".to_string(),
+            ),
+            (
+                "14:22:02".to_string(),
+                "INFO".to_string(),
+                "Wayland wgpu surface created (144 Hz refresh target)".to_string(),
+            ),
         ];
 
         let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
 
         Self {
             pending_confirm: None,
+            pending_rename: None,
+            pending_preview: None,
             is_dir_picker_open: false,
             is_mount_points_open: false,
             is_system_logs_open: false,
@@ -46,7 +66,8 @@ impl ModalManager {
 
     pub fn log(&mut self, level: &str, msg: &str) {
         let time_str = chrono::Local::now().format("%H:%M:%S").to_string();
-        self.log_messages.push((time_str, level.to_string(), msg.to_string()));
+        self.log_messages
+            .push((time_str, level.to_string(), msg.to_string()));
     }
 
     pub fn show_toast(&mut self, message: String, is_error: bool) {
@@ -58,6 +79,7 @@ impl ModalManager {
         ctx: &egui::Context,
         dark_mode: bool,
         on_deleted: &mut dyn FnMut(&PathBuf),
+        on_renamed: &mut dyn FnMut(&PathBuf, &PathBuf, &str),
         on_select_custom_path: &mut dyn FnMut(PathBuf),
     ) {
         let t = AppTheme::tokens(dark_mode);
@@ -83,8 +105,18 @@ impl ModalManager {
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
                                     let icon = if *is_error { "⚠" } else { "✔" };
-                                    ui.label(RichText::new(icon).size(16.0).color(Color32::WHITE).strong());
-                                    ui.label(RichText::new(msg).color(Color32::WHITE).size(12.5).strong());
+                                    ui.label(
+                                        RichText::new(icon)
+                                            .size(16.0)
+                                            .color(Color32::WHITE)
+                                            .strong(),
+                                    );
+                                    ui.label(
+                                        RichText::new(msg)
+                                            .color(Color32::WHITE)
+                                            .size(12.5)
+                                            .strong(),
+                                    );
                                 });
                             });
                     });
@@ -115,7 +147,7 @@ impl ModalManager {
                     // Target details box
                     egui::Frame::none()
                         .fill(t.bg_surface)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, t.border))
                         .inner_margin(Margin::same(12.0))
                         .show(ui, |ui| {
@@ -194,7 +226,11 @@ impl ModalManager {
                 .collapsible(false)
                 .fixed_size(Vec2::new(modal_width, modal_height))
                 .show(ctx, |ui| {
-                    ui.label(RichText::new("Active kernel file system mount points and disk devices:").size(11.5).color(t.text_secondary));
+                    ui.label(
+                        RichText::new("Active kernel file system mount points and disk devices:")
+                            .size(11.5)
+                            .color(t.text_secondary),
+                    );
                     ui.add_space(6.0);
 
                     let disks = Disks::new_with_refreshed_list();
@@ -218,18 +254,38 @@ impl ModalManager {
                                     for disk in &disks {
                                         let mount_path = disk.mount_point().display().to_string();
                                         let dev_name = disk.name().to_string_lossy().to_string();
-                                        let fs_type = disk.file_system().to_string_lossy().to_string();
+                                        let fs_type =
+                                            disk.file_system().to_string_lossy().to_string();
                                         let total = disk.total_space();
                                         let avail = disk.available_space();
                                         let used = total.saturating_sub(avail);
-                                        let pct = if total > 0 { (used as f64 / total as f64) * 100.0 } else { 0.0 };
+                                        let pct = if total > 0 {
+                                            (used as f64 / total as f64) * 100.0
+                                        } else {
+                                            0.0
+                                        };
 
-                                        ui.label(RichText::new(&mount_path).strong().color(t.accent));
+                                        ui.label(
+                                            RichText::new(&mount_path).strong().color(t.accent),
+                                        );
                                         ui.label(RichText::new(&dev_name).color(t.text_muted));
                                         ui.label(RichText::new(&fs_type).color(t.text_muted));
-                                        ui.label(RichText::new(crate::models::format_size(total)).color(t.text));
-                                        ui.label(RichText::new(format!("{} ({:.0}%)", crate::models::format_size(used), pct)).color(t.text));
-                                        ui.label(RichText::new(crate::models::format_size(avail)).color(t.success));
+                                        ui.label(
+                                            RichText::new(crate::models::format_size(total))
+                                                .color(t.text),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "{} ({:.0}%)",
+                                                crate::models::format_size(used),
+                                                pct
+                                            ))
+                                            .color(t.text),
+                                        );
+                                        ui.label(
+                                            RichText::new(crate::models::format_size(avail))
+                                                .color(t.success),
+                                        );
                                         ui.end_row();
                                     }
                                 });
@@ -260,7 +316,11 @@ impl ModalManager {
                 .collapsible(false)
                 .fixed_size(Vec2::new(modal_width, modal_height))
                 .show(ctx, |ui| {
-                    ui.label(RichText::new("Background thread telemetry and scanning logs:").size(11.5).color(t.text_secondary));
+                    ui.label(
+                        RichText::new("Background thread telemetry and scanning logs:")
+                            .size(11.5)
+                            .color(t.text_secondary),
+                    );
                     ui.add_space(6.0);
 
                     egui::Frame::none()
@@ -281,9 +341,25 @@ impl ModalManager {
                                         };
 
                                         ui.horizontal(|ui| {
-                                            ui.label(RichText::new(format!("[{}]", time)).size(10.5).monospace().color(t.text_muted));
-                                            ui.label(RichText::new(level).size(10.5).strong().monospace().color(lvl_color));
-                                            ui.label(RichText::new(msg).size(11.0).monospace().color(Color32::WHITE));
+                                            ui.label(
+                                                RichText::new(format!("[{}]", time))
+                                                    .size(10.5)
+                                                    .monospace()
+                                                    .color(t.text_muted),
+                                            );
+                                            ui.label(
+                                                RichText::new(level)
+                                                    .size(10.5)
+                                                    .strong()
+                                                    .monospace()
+                                                    .color(lvl_color),
+                                            );
+                                            ui.label(
+                                                RichText::new(msg)
+                                                    .size(11.0)
+                                                    .monospace()
+                                                    .color(Color32::WHITE),
+                                            );
                                         });
                                     }
                                 });
@@ -291,7 +367,11 @@ impl ModalManager {
 
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Engine threads: 16 (Rayon crawler)").size(10.5).color(t.text_muted));
+                        ui.label(
+                            RichText::new("Engine threads: 16 (Rayon crawler)")
+                                .size(10.5)
+                                .color(t.text_muted),
+                        );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button("Close").clicked() {
                                 close_logs = true;
@@ -380,12 +460,19 @@ impl ModalManager {
                 .collapsible(false)
                 .fixed_size(Vec2::new(modal_width, modal_height))
                 .show(ctx, |ui| {
-                    ui.label(RichText::new("Type or browse directory path to analyze:").size(11.5).color(t.text_secondary));
+                    ui.label(
+                        RichText::new("Type or browse directory path to analyze:")
+                            .size(11.5)
+                            .color(t.text_secondary),
+                    );
                     ui.add_space(4.0);
 
                     ui.horizontal(|ui| {
                         let text_w = (modal_width - 160.0).max(120.0);
-                        ui.add(egui::TextEdit::singleline(&mut self.custom_dir_path).desired_width(text_w));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.custom_dir_path)
+                                .desired_width(text_w),
+                        );
                         if ui.button("📁 Native Dialog...").clicked() {
                             if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                                 self.custom_dir_path = folder.display().to_string();
@@ -396,7 +483,11 @@ impl ModalManager {
                     ui.add_space(10.0);
 
                     // Preset locations
-                    ui.label(RichText::new("Quick Locations:").size(11.0).color(t.text_muted));
+                    ui.label(
+                        RichText::new("Quick Locations:")
+                            .size(11.0)
+                            .color(t.text_muted),
+                    );
                     ui.horizontal_wrapped(|ui| {
                         let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
                         if ui.small_button("Home (~)").clicked() {
@@ -426,7 +517,17 @@ impl ModalManager {
                         }
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.add(egui::Button::new(RichText::new("Choose Folder & Analyze →").color(Color32::WHITE).strong()).fill(t.accent)).clicked() {
+                            if ui
+                                .add(
+                                    egui::Button::new(
+                                        RichText::new("Choose Folder & Analyze →")
+                                            .color(Color32::WHITE)
+                                            .strong(),
+                                    )
+                                    .fill(t.accent),
+                                )
+                                .clicked()
+                            {
                                 chosen_path = Some(PathBuf::from(self.custom_dir_path.trim()));
                                 close_picker = true;
                             }
@@ -440,6 +541,216 @@ impl ModalManager {
 
             if close_picker {
                 self.is_dir_picker_open = false;
+            }
+        }
+
+        // 6. Rename Dialog Window (Rename any content from anywhere!)
+        if let Some((orig_path, mut new_name)) = self.pending_rename.clone() {
+            let mut close_rename = false;
+            let mut do_rename = false;
+            let screen_size = ctx.screen_rect().size();
+            let modal_width = 440.0_f32.min(screen_size.x - 32.0);
+
+            Window::new("✏️ Rename Item")
+                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                .collapsible(false)
+                .resizable(false)
+                .fixed_size(Vec2::new(modal_width, 180.0))
+                .show(ctx, |ui| {
+                    ui.label(
+                        RichText::new("Enter new name:")
+                            .size(11.5)
+                            .color(t.text_secondary),
+                    );
+                    ui.add_space(4.0);
+
+                    let response = ui.add(
+                        egui::TextEdit::singleline(&mut new_name).desired_width(modal_width - 24.0),
+                    );
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        do_rename = true;
+                    }
+
+                    ui.add_space(6.0);
+                    let curr_name = orig_path.file_name().unwrap_or_default().to_string_lossy();
+                    ui.label(
+                        RichText::new(format!("Current: {}", curr_name))
+                            .size(10.5)
+                            .color(t.text_muted),
+                    );
+
+                    ui.add_space(14.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Cancel").clicked() {
+                            close_rename = true;
+                        }
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let can_save =
+                                !new_name.trim().is_empty() && new_name.trim() != curr_name;
+                            if ui
+                                .add_enabled(
+                                    can_save,
+                                    egui::Button::new(
+                                        RichText::new("Rename").color(Color32::WHITE).strong(),
+                                    )
+                                    .fill(t.accent),
+                                )
+                                .clicked()
+                            {
+                                do_rename = true;
+                            }
+                        });
+                    });
+                });
+
+            if do_rename {
+                let trimmed = new_name.trim().to_string();
+                if let Some(parent) = orig_path.parent() {
+                    let dest_path = parent.join(&trimmed);
+                    match FileActions::rename(&orig_path, &dest_path) {
+                        Ok(_) => {
+                            self.show_toast(format!("Renamed to '{}'", trimmed), false);
+                            on_renamed(&orig_path, &dest_path, &trimmed);
+                        }
+                        Err(e) => {
+                            self.show_toast(e, true);
+                        }
+                    }
+                }
+                self.pending_rename = None;
+            } else if close_rename {
+                self.pending_rename = None;
+            } else {
+                self.pending_rename = Some((orig_path, new_name));
+            }
+        }
+
+        // 7. Quick Preview Dialog (Preview any content from anywhere!)
+        if let Some(preview_path) = self.pending_preview.clone() {
+            let mut close_preview = false;
+            let screen_size = ctx.screen_rect().size();
+            let modal_width = 640.0_f32.min(screen_size.x - 32.0);
+            let modal_height = 480.0_f32.min(screen_size.y - 48.0);
+
+            let file_name = preview_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let title = format!("👁 Quick Preview: {}", file_name);
+
+            Window::new(title)
+                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                .collapsible(false)
+                .resizable(true)
+                .default_size(Vec2::new(modal_width, modal_height))
+                .show(ctx, |ui| {
+                    // Header Details
+                    egui::Frame::none()
+                        .fill(t.bg_surface)
+                        .rounding(8.0_f32)
+                        .stroke(egui::Stroke::new(1.0_f32, t.border))
+                        .inner_margin(Margin::same(10.0))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let is_dir = preview_path.is_dir();
+                                let meta = std::fs::metadata(&preview_path).ok();
+                                let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                                let icon = if is_dir { "📁" } else { "📄" };
+                                ui.label(RichText::new(icon).size(22.0));
+                                ui.vertical(|ui| {
+                                    ui.label(RichText::new(&file_name).size(13.0).strong().color(t.text));
+                                    ui.horizontal(|ui| {
+                                        if !is_dir {
+                                            ui.label(RichText::new(crate::models::format_size(size)).size(11.0).monospace().color(t.accent));
+                                            ui.label(RichText::new("•").size(11.0).color(t.border));
+                                        }
+                                        let p_str = preview_path.display().to_string();
+                                        ui.label(RichText::new(crate::theme::truncate_middle(&p_str, 45)).size(10.5).color(t.text_muted));
+                                    });
+                                });
+                            });
+                        });
+
+                    ui.add_space(8.0);
+
+                    // Content Viewer Box
+                    let content_h = (ui.available_height() - 48.0).max(120.0);
+                    egui::Frame::none()
+                        .fill(t.bg_input)
+                        .rounding(8.0_f32)
+                        .stroke(egui::Stroke::new(1.0_f32, t.border))
+                        .inner_margin(Margin::same(8.0))
+                        .show(ui, |ui| {
+                            egui::ScrollArea::both()
+                                .max_height(content_h)
+                                .show(ui, |ui| {
+                                    if preview_path.is_dir() {
+                                        ui.label(RichText::new("Directory Contents (First 50 items):").size(11.0).strong().color(t.accent));
+                                        ui.add_space(4.0);
+                                        if let Ok(entries) = std::fs::read_dir(&preview_path) {
+                                            for entry in entries.flatten().take(50) {
+                                                let sub_name = entry.file_name().to_string_lossy().to_string();
+                                                let is_subdir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                                                let sub_icon = if is_subdir { "📁" } else { "📄" };
+                                                ui.label(RichText::new(format!("{} {}", sub_icon, sub_name)).size(11.0).color(t.text));
+                                            }
+                                        } else {
+                                            ui.label(RichText::new("Unable to read directory entries").size(10.5).color(t.text_muted));
+                                        }
+                                    } else {
+                                        match FileActions::preview_text(&preview_path, 8192) {
+                                            Ok(txt) => {
+                                                if txt.is_empty() {
+                                                    ui.label(RichText::new("(Empty file)").size(11.0).italics().color(t.text_muted));
+                                                } else {
+                                                    ui.label(RichText::new(&txt).monospace().size(10.5).color(t.text));
+                                                }
+                                            }
+                                            Err(_) => {
+                                                ui.label(RichText::new("Binary content: text preview not available.").size(11.0).color(t.text_muted));
+                                                ui.label(RichText::new("Click 'Open File' below to view in your system default application.").size(10.5).color(t.text_secondary));
+                                            }
+                                        }
+                                    }
+                                });
+                        });
+
+                    ui.add_space(8.0);
+
+                    // Footer Quick Actions Toolbar
+                    ui.horizontal(|ui| {
+                        if ui.button("Close").clicked() {
+                            close_preview = true;
+                        }
+
+                        if ui.small_button("📄 Open File").clicked() {
+                            let _ = FileActions::open_file(&preview_path);
+                        }
+
+                        if ui.small_button("📂 Show in Folder").clicked() {
+                            let _ = FileActions::open_in_file_manager(&preview_path);
+                        }
+
+                        if ui.small_button("✏ Rename...").clicked() {
+                            let name = preview_path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                            self.pending_rename = Some((preview_path.clone(), name));
+                            close_preview = true;
+                        }
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let sz = std::fs::metadata(&preview_path).map(|m| m.len()).unwrap_or(0);
+                            if ui.add(egui::Button::new(RichText::new("🗑 Move to Trash").color(Color32::WHITE)).fill(t.danger)).clicked() {
+                                self.pending_confirm = Some(ConfirmAction::MoveToTrash(preview_path.clone(), sz));
+                                close_preview = true;
+                            }
+                        });
+                    });
+                });
+
+            if close_preview {
+                self.pending_preview = None;
             }
         }
     }

@@ -5,6 +5,7 @@ pub mod duplicates;
 pub mod export;
 pub mod history;
 pub mod manage;
+pub mod metadata;
 pub mod models;
 pub mod scanner;
 pub mod settings;

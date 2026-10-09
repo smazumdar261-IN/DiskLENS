@@ -54,10 +54,7 @@ impl DuplicateDetector {
     }
 
     /// Collect candidate files by size grouping (fast in-memory tree traversal)
-    pub fn collect_candidates(
-        root: &FileNode,
-        min_size_bytes: u64,
-    ) -> Vec<(u64, Vec<PathBuf>)> {
+    pub fn collect_candidates(root: &FileNode, min_size_bytes: u64) -> Vec<(u64, Vec<PathBuf>)> {
         let mut candidates_by_size: HashMap<u64, Vec<PathBuf>> = HashMap::new();
         Self::collect_files(root, min_size_bytes, &mut candidates_by_size);
 
@@ -125,7 +122,11 @@ impl DuplicateDetector {
                                 };
 
                                 DuplicateItem {
-                                    id: format!("dup-{}-{}", sha256.chars().take(8).collect::<String>(), idx),
+                                    id: format!(
+                                        "dup-{}-{}",
+                                        sha256.chars().take(8).collect::<String>(),
+                                        idx
+                                    ),
                                     path,
                                     size_bytes: size,
                                     modified_date: mod_str,
@@ -157,11 +158,7 @@ impl DuplicateDetector {
         sorted
     }
 
-    fn collect_files(
-        node: &FileNode,
-        min_size: u64,
-        map: &mut HashMap<u64, Vec<PathBuf>>,
-    ) {
+    fn collect_files(node: &FileNode, min_size: u64, map: &mut HashMap<u64, Vec<PathBuf>>) {
         if !node.is_dir {
             if node.size >= min_size {
                 map.entry(node.size).or_default().push(node.path.clone());

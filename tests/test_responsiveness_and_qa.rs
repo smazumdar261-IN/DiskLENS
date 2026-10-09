@@ -11,12 +11,20 @@ use std::time::SystemTime;
 /// - Hundreds of files across all categories
 fn generate_stress_test_hierarchy() -> FileNode {
     let root_path = PathBuf::from("/home/sayantan/extreme_storage_test_environment");
-    let mut root = FileNode::new_dir("extreme_storage_test_environment".to_string(), root_path.clone(), Some(SystemTime::now()));
+    let mut root = FileNode::new_dir(
+        "extreme_storage_test_environment".to_string(),
+        root_path.clone(),
+        Some(SystemTime::now()),
+    );
 
     // 1. Extremely long path component
     let long_name = "a_very_long_project_name_that_simulates_real_world_nested_node_modules_or_deeply_nested_java_package_structures_with_extended_identifiers_and_hash_suffixes_0123456789_abcdef";
     let deep_dir_path = root_path.join(long_name);
-    let mut deep_dir = FileNode::new_dir(long_name.to_string(), deep_dir_path.clone(), Some(SystemTime::now()));
+    let mut deep_dir = FileNode::new_dir(
+        long_name.to_string(),
+        deep_dir_path.clone(),
+        Some(SystemTime::now()),
+    );
 
     // 2. Add deeply nested subfolders (12 levels)
     let mut current_parent = &mut deep_dir;
@@ -33,27 +41,64 @@ fn generate_stress_test_hierarchy() -> FileNode {
     for i in 1..=20 {
         let f_name = format!("deep_payload_artifact_{}.bin", i);
         let f_path = curr_path.join(&f_name);
-        let f_node = FileNode::new_file(f_name, f_path, 15_000_000 * i as u64, Some(SystemTime::now()));
+        let f_node = FileNode::new_file(
+            f_name,
+            f_path,
+            15_000_000 * i as u64,
+            Some(SystemTime::now()),
+        );
         current_parent.children.push(f_node);
     }
 
     // 3. Add space hogs across diverse categories
-    let mut media_dir = FileNode::new_dir("Videos_and_Media".to_string(), root_path.join("Videos_and_Media"), Some(SystemTime::now()));
-    let massive_video = FileNode::new_file("4k_render_final_cut_pro_lossless_master.mov".to_string(), root_path.join("Videos_and_Media/4k_render_final_cut_pro_lossless_master.mov"), 14_800_000_000, Some(SystemTime::now()));
-    let iso_file = FileNode::new_file("archlinux-2026.08.01-x86_64.iso".to_string(), root_path.join("Videos_and_Media/archlinux-2026.08.01-x86_64.iso"), 4_200_000_000, Some(SystemTime::now()));
+    let mut media_dir = FileNode::new_dir(
+        "Videos_and_Media".to_string(),
+        root_path.join("Videos_and_Media"),
+        Some(SystemTime::now()),
+    );
+    let massive_video = FileNode::new_file(
+        "4k_render_final_cut_pro_lossless_master.mov".to_string(),
+        root_path.join("Videos_and_Media/4k_render_final_cut_pro_lossless_master.mov"),
+        14_800_000_000,
+        Some(SystemTime::now()),
+    );
+    let iso_file = FileNode::new_file(
+        "archlinux-2026.08.01-x86_64.iso".to_string(),
+        root_path.join("Videos_and_Media/archlinux-2026.08.01-x86_64.iso"),
+        4_200_000_000,
+        Some(SystemTime::now()),
+    );
     media_dir.children.push(massive_video);
     media_dir.children.push(iso_file);
 
-    let mut cache_dir = FileNode::new_dir(".cache".to_string(), root_path.join(".cache"), Some(SystemTime::now()));
+    let mut cache_dir = FileNode::new_dir(
+        ".cache".to_string(),
+        root_path.join(".cache"),
+        Some(SystemTime::now()),
+    );
     for i in 1..=50 {
-        let cache_file = FileNode::new_file(format!("blob_cache_{:04}.tmp", i), root_path.join(format!(".cache/blob_cache_{:04}.tmp", i)), 12_500_000, Some(SystemTime::now()));
+        let cache_file = FileNode::new_file(
+            format!("blob_cache_{:04}.tmp", i),
+            root_path.join(format!(".cache/blob_cache_{:04}.tmp", i)),
+            12_500_000,
+            Some(SystemTime::now()),
+        );
         cache_dir.children.push(cache_file);
     }
 
-    let mut code_dir = FileNode::new_dir("rust_engine_source".to_string(), root_path.join("rust_engine_source"), Some(SystemTime::now()));
+    let mut code_dir = FileNode::new_dir(
+        "rust_engine_source".to_string(),
+        root_path.join("rust_engine_source"),
+        Some(SystemTime::now()),
+    );
     for ext in ["rs", "toml", "json", "md", "lock", "c", "h", "py"] {
         for i in 1..=10 {
-            let code_file = FileNode::new_file(format!("source_{}.{}", i, ext), root_path.join(format!("rust_engine_source/source_{}.{}", i, ext)), 45_000 * i as u64, Some(SystemTime::now()));
+            let code_file = FileNode::new_file(
+                format!("source_{}.{}", i, ext),
+                root_path.join(format!("rust_engine_source/source_{}.{}", i, ext)),
+                45_000 * i as u64,
+                Some(SystemTime::now()),
+            );
             code_dir.children.push(code_file);
         }
     }
@@ -70,8 +115,16 @@ fn generate_stress_test_hierarchy() -> FileNode {
                 recalculate(c);
             }
             node.size = node.children.iter().map(|c| c.size).sum();
-            node.file_count = node.children.iter().map(|c| if c.is_dir { c.file_count } else { 1 }).sum();
-            node.dir_count = node.children.iter().map(|c| if c.is_dir { c.dir_count + 1 } else { 0 }).sum();
+            node.file_count = node
+                .children
+                .iter()
+                .map(|c| if c.is_dir { c.file_count } else { 1 })
+                .sum();
+            node.dir_count = node
+                .children
+                .iter()
+                .map(|c| if c.is_dir { c.dir_count + 1 } else { 0 })
+                .sum();
         }
     }
 
@@ -133,7 +186,9 @@ fn test_window_responsiveness_audit_across_all_resolutions() {
                 assert!(
                     !output.shapes.is_empty(),
                     "Resolution {} in tab {:?} (dark={}) must generate rendered shapes",
-                    res_name, tab, dark_mode
+                    res_name,
+                    tab,
+                    dark_mode
                 );
             }
         }
@@ -212,12 +267,19 @@ fn test_treemap_squarified_geometry_at_all_depths() {
         let canvas = Rect::from_min_max(Pos2::new(10.0, 10.0), Pos2::new(790.0, 550.0));
         let layout = TreemapLayout::build(&stress_root, canvas, depth);
 
-        assert!(!layout.items.is_empty(), "Treemap layout must produce items at depth {}", depth);
+        assert!(
+            !layout.items.is_empty(),
+            "Treemap layout must produce items at depth {}",
+            depth
+        );
         for item in &layout.items {
             assert!(item.rect.width() >= 0.0, "Width must be non-negative");
             assert!(item.rect.height() >= 0.0, "Height must be non-negative");
             assert!(item.size > 0, "Item size must be positive");
-            assert!(canvas.contains(item.rect.center()), "Item center must stay within canvas bounds");
+            assert!(
+                canvas.contains(item.rect.center()),
+                "Item center must stay within canvas bounds"
+            );
         }
     }
 }
@@ -249,8 +311,13 @@ fn test_settings_modal_all_tabs_responsiveness() {
                 app.render_app_ui(ctx);
             });
 
-            assert!(!output.shapes.is_empty(), "Settings tab {} must render properly at {}x{}", tab_idx, w, h);
+            assert!(
+                !output.shapes.is_empty(),
+                "Settings tab {} must render properly at {}x{}",
+                tab_idx,
+                w,
+                h
+            );
         }
     }
 }
-

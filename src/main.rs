@@ -5,6 +5,7 @@ mod duplicates;
 mod export;
 mod history;
 mod manage;
+mod metadata;
 mod models;
 mod scanner;
 mod settings;

@@ -74,7 +74,10 @@ impl Default for AppSettings {
 impl AppSettings {
     pub fn config_path() -> PathBuf {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(home).join(".config").join("disklens").join("settings.json")
+        PathBuf::from(home)
+            .join(".config")
+            .join("disklens")
+            .join("settings.json")
     }
 
     pub fn load() -> Self {
@@ -95,14 +98,15 @@ impl AppSettings {
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create config dir: {}", e))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create config dir: {}", e))?;
         }
 
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Serialization error: {}", e))?;
 
-        let mut file = File::create(&path)
-            .map_err(|e| format!("Failed to write settings file: {}", e))?;
+        let mut file =
+            File::create(&path).map_err(|e| format!("Failed to write settings file: {}", e))?;
         file.write_all(json.as_bytes())
             .map_err(|e| format!("Failed to save settings: {}", e))?;
 

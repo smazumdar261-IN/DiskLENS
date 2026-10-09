@@ -62,7 +62,12 @@ pub fn render_settings_modal(
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("⚙").size(16.0).color(t.accent));
-                        ui.label(RichText::new("DiskLens Engine Settings").size(15.0).strong().color(t.text));
+                        ui.label(
+                            RichText::new("DiskLens Engine Settings")
+                                .size(15.0)
+                                .strong()
+                                .color(t.text),
+                        );
                     });
                 });
 
@@ -99,13 +104,24 @@ pub fn render_settings_modal(
                                 };
 
                                 let btn = egui::Button::new(
-                                    RichText::new(label_str)
-                                        .size(12.0)
-                                        .strong()
-                                        .color(if is_active { t.accent } else { t.text_secondary }),
+                                    RichText::new(label_str).size(12.0).strong().color(
+                                        if is_active {
+                                            t.accent
+                                        } else {
+                                            t.text_secondary
+                                        },
+                                    ),
                                 )
-                                .fill(if is_active { t.bg_elevated } else { Color32::TRANSPARENT })
-                                .stroke(if is_active { egui::Stroke::new(1.0_f32, t.accent) } else { egui::Stroke::NONE })
+                                .fill(if is_active {
+                                    t.bg_elevated
+                                } else {
+                                    Color32::TRANSPARENT
+                                })
+                                .stroke(if is_active {
+                                    egui::Stroke::new(1.0_f32, t.accent)
+                                } else {
+                                    egui::Stroke::NONE
+                                })
                                 .rounding(4.0_f32);
 
                                 if ui.add_sized([sidebar_w - 4.0, 32.0], btn).clicked() {
@@ -143,27 +159,40 @@ pub fn render_settings_modal(
                 .inner_margin(Margin::symmetric(14.0, 10.0))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        if ui.button("↺ Reset Defaults").on_hover_text("Restore default engine and crawler configuration").clicked() {
+                        if ui
+                            .button("↺ Reset Defaults")
+                            .on_hover_text("Restore default engine and crawler configuration")
+                            .clicked()
+                        {
                             state.settings.reset_defaults();
                             *dark_mode = true;
                             modals.show_toast("Reset settings to defaults".to_string(), false);
                         }
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let save_btn = egui::Button::new(RichText::new("Save Changes").strong().color(Color32::WHITE))
-                                .fill(t.accent)
-                                .rounding(4.0_f32);
+                            let save_btn = egui::Button::new(
+                                RichText::new("Save Changes").strong().color(Color32::WHITE),
+                            )
+                            .fill(t.accent)
+                            .rounding(4.0_f32);
 
                             if ui.add_sized([110.0, 28.0], save_btn).clicked() {
                                 if let Err(e) = state.settings.save() {
-                                    modals.show_toast(format!("Error saving settings: {}", e), true);
+                                    modals
+                                        .show_toast(format!("Error saving settings: {}", e), true);
                                 } else {
-                                    modals.show_toast("Settings saved successfully".to_string(), false);
+                                    modals.show_toast(
+                                        "Settings saved successfully".to_string(),
+                                        false,
+                                    );
                                     state.is_open = false;
                                 }
                             }
 
-                            if ui.add_sized([80.0, 28.0], egui::Button::new("Cancel")).clicked() {
+                            if ui
+                                .add_sized([80.0, 28.0], egui::Button::new("Cancel"))
+                                .clicked()
+                            {
                                 state.is_open = false;
                             }
                         });
@@ -377,7 +406,7 @@ fn render_section_card(
 ) {
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {

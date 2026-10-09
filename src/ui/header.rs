@@ -4,6 +4,7 @@ use crate::theme::{truncate_middle, AppTheme};
 use eframe::egui::{self, Color32, RichText, Ui, Vec2};
 use std::path::PathBuf;
 
+#[allow(dead_code)]
 pub struct HeaderProps<'a> {
     pub active_tab: &'a mut ActiveTab,
     pub is_scanning: bool,
@@ -12,6 +13,10 @@ pub struct HeaderProps<'a> {
     pub search_query: &'a mut String,
     pub one_filesystem: bool,
     pub permission_errors: usize,
+    pub can_go_back: bool,
+    pub can_go_forward: bool,
+    pub on_go_back: &'a mut dyn FnMut(),
+    pub on_go_forward: &'a mut dyn FnMut(),
     pub on_theme_change: &'a mut dyn FnMut(bool),
     pub on_refresh_storage: &'a mut dyn FnMut(),
     pub on_rescan: &'a mut dyn FnMut(PathBuf),
@@ -34,62 +39,34 @@ pub fn render_header(ui: &mut Ui, props: HeaderProps) {
     ui.vertical(|ui| {
         // 1. Linux CSD Window Header Strip
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+            ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
 
-            // Rust Crab Icon & Brand Name
-            if ui.add(
-                egui::Button::new(RichText::new("🦀 DiskLens").size(12.0).strong().color(t.text))
-                    .fill(Color32::TRANSPARENT)
-                    .frame(false)
-            ).on_hover_text("Open Rust Engine & Architecture Inspector").clicked() {
-                *props.active_tab = ActiveTab::RustEngine;
-            }
+            // Clean Brand Name
+            ui.add(
+                egui::Label::new(
+                    RichText::new("DiskLens")
+                        .size(13.0)
+                        .strong()
+                        .color(t.text),
+                )
+            );
 
-            ui.label(RichText::new("|").size(11.0).color(t.border));
-
-            if !is_compact {
-                let badge_btn = ui.add(
-                    egui::Button::new(RichText::new("Rust 1.82 · io_uring").size(10.0).monospace().color(t.success))
-                        .fill(t.bg_elevated)
-                        .stroke(egui::Stroke::new(1.0_f32, t.border))
-                        .rounding(3.0_f32)
-                ).on_hover_text("High-performance safe Rust immediate-mode storage suite");
-
-                if badge_btn.clicked() {
-                    *props.active_tab = ActiveTab::RustEngine;
-                }
-
-                if available_w > 900.0 {
-                    ui.label(
-                        RichText::new("Rayon: 16t · 0-alloc · Wayland/wgpu")
-                            .size(10.0)
-                            .monospace()
-                            .color(t.text_muted)
-                    );
-                }
-            }
-
-            // Center Target Info
+            // Target location or indexing status
             if let Some(root) = props.scanned_root {
                 let loc_name = root.path.display().to_string();
-                let short_loc = truncate_middle(&loc_name, if available_w > 900.0 { 36 } else { 18 });
+                let short_loc = truncate_middle(&loc_name, if available_w > 900.0 { 40 } else { 20 });
+                ui.label(RichText::new("|").size(11.0).color(t.border));
                 ui.add(
-                    egui::Label::new(RichText::new(format!("— {}", short_loc)).size(10.5).color(t.text_muted))
+                    egui::Label::new(RichText::new(short_loc).size(11.0).color(t.text_muted))
                         .truncate(),
                 ).on_hover_text(&loc_name);
             } else if props.is_scanning {
+                ui.label(RichText::new("|").size(11.0).color(t.border));
                 ui.add(
-                    egui::Label::new(RichText::new("⚡ Rayon crawler indexing filesystem...").size(10.5).color(t.warning).strong())
+                    egui::Label::new(RichText::new("⚡ Indexing filesystem...").size(11.0).color(t.warning).strong())
                         .truncate(),
                 );
             }
-
-            // Right-hand CSD Controls
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(RichText::new("Rust CLI").size(10.0).monospace().color(t.accent)).on_hover_text("Open Rust Terminal & Engine Shell").clicked() {
-                    *props.active_tab = ActiveTab::RustEngine;
-                }
-            });
         });
 
         ui.add_space(3.0);
@@ -98,7 +75,34 @@ pub fn render_header(ui: &mut Ui, props: HeaderProps) {
 
         // 2. Top Application Bar (Brand, Breadcrumbs, Search, Actions)
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
+            ui.spacing_mut().item_spacing = Vec2::new(6.0, 0.0);
+
+            // Universal Back & Forward Navigation Controls
+            let back_text = RichText::new("◀")
+                .size(11.5)
+                .color(if props.can_go_back { t.text } else { t.text_muted.gamma_multiply(0.35) });
+            let back_btn = egui::Button::new(back_text)
+                .fill(if props.can_go_back { t.bg_elevated } else { Color32::TRANSPARENT })
+                .stroke(if props.can_go_back { egui::Stroke::new(1.0_f32, t.border) } else { egui::Stroke::NONE })
+                .rounding(4.0_f32)
+                .min_size(Vec2::new(24.0, 22.0));
+            if ui.add_enabled(props.can_go_back, back_btn).on_hover_text("Navigate Back (Alt+Left)").clicked() {
+                (props.on_go_back)();
+            }
+
+            let fwd_text = RichText::new("▶")
+                .size(11.5)
+                .color(if props.can_go_forward { t.text } else { t.text_muted.gamma_multiply(0.35) });
+            let fwd_btn = egui::Button::new(fwd_text)
+                .fill(if props.can_go_forward { t.bg_elevated } else { Color32::TRANSPARENT })
+                .stroke(if props.can_go_forward { egui::Stroke::new(1.0_f32, t.border) } else { egui::Stroke::NONE })
+                .rounding(4.0_f32)
+                .min_size(Vec2::new(24.0, 22.0));
+            if ui.add_enabled(props.can_go_forward, fwd_btn).on_hover_text("Navigate Forward (Alt+Right)").clicked() {
+                (props.on_go_forward)();
+            }
+
+            ui.separator();
 
             // Storage Home shortcut
             let home_btn = ui.add(
@@ -129,8 +133,8 @@ pub fn render_header(ui: &mut Ui, props: HeaderProps) {
 
             // Right-aligned Action Controls
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // More Options Menu
-                ui.menu_button("⋮", |ui| {
+                // 1. Smart More Options Menu (custom vector-painted 3 dots, never tofu)
+                let menu_resp = ui.menu_button("   ", |ui| {
                     ui.set_min_width(200.0);
 
                     ui.label(RichText::new("EXPORT & REPORTS").size(9.5).color(t.text_muted).strong());
@@ -144,42 +148,39 @@ pub fn render_header(ui: &mut Ui, props: HeaderProps) {
                     }
 
                     ui.separator();
-                    ui.label(RichText::new("LINUX SYSTEM TOOLS").size(9.5).color(t.text_muted).strong());
+                    ui.label(RichText::new("ACTIONS & TOOLS").size(9.5).color(t.text_muted).strong());
                     if ui.button("📁 Scan Custom Folder...").clicked() {
                         (props.on_open_dir_picker)();
-                        ui.close_menu();
-                    }
-                    if ui.button("💿 Mount Points & Btrfs").clicked() {
-                        *props.active_tab = ActiveTab::MountPoints;
-                        ui.close_menu();
-                    }
-                    if ui.button("🩺 S.M.A.R.T. Health Diagnostics").clicked() {
-                        *props.active_tab = ActiveTab::DiagnosticsSmart;
-                        ui.close_menu();
-                    }
-                    if ui.button("📜 Storage Event Logs").clicked() {
-                        *props.active_tab = ActiveTab::SystemLogs;
                         ui.close_menu();
                     }
                     if ui.button("⚙ Engine Settings...").clicked() {
                         (props.on_open_settings)();
                         ui.close_menu();
                     }
-                    if ui.button("📖 DiskLens Guide & Docs").clicked() {
-                        *props.active_tab = ActiveTab::Documentation;
+                    if ui.button("ℹ About DiskLens...").clicked() {
+                        (props.on_open_docs)();
                         ui.close_menu();
                     }
                 });
+                let m_rect = menu_resp.response.rect;
+                let is_m_hover = menu_resp.response.hovered();
+                let dot_col = if is_m_hover { t.accent } else { t.text };
+                let cx = m_rect.center().x;
+                let cy = m_rect.center().y;
+                ui.painter().circle_filled(egui::Pos2::new(cx, cy - 4.5), 1.6, dot_col);
+                ui.painter().circle_filled(egui::Pos2::new(cx, cy), 1.6, dot_col);
+                ui.painter().circle_filled(egui::Pos2::new(cx, cy + 4.5), 1.6, dot_col);
+                menu_resp.response.on_hover_text("More actions, settings and about DiskLens");
 
-                // Settings Button
-                if ui.small_button("⚙").on_hover_text("Open Engine Settings (,)").clicked() {
-                    (props.on_open_settings)();
-                }
-
-                // Theme Toggle
-                let theme_icon = if props.dark_mode { "☀" } else { "🌙" };
+                // 3. Smart Theme Toggle Button (☀ in dark mode, ☾ in light mode)
+                let theme_icon = if props.dark_mode { "☀" } else { "☾" };
                 let theme_tip = if props.dark_mode { "Switch to Light Theme (T)" } else { "Switch to Dark Theme (T)" };
-                if ui.small_button(theme_icon).on_hover_text(theme_tip).clicked() {
+                let theme_btn = egui::Button::new(RichText::new(theme_icon).size(12.0).color(t.text))
+                    .fill(t.bg_elevated)
+                    .stroke(egui::Stroke::new(1.0_f32, t.border))
+                    .rounding(4.0_f32)
+                    .min_size(Vec2::new(26.0, 22.0));
+                if ui.add(theme_btn).on_hover_text(theme_tip).clicked() {
                     (props.on_theme_change)(!props.dark_mode);
                 }
 

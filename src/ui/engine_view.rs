@@ -19,18 +19,16 @@ pub struct EngineViewState {
 
 impl Default for EngineViewState {
     fn default() -> Self {
-        let default_history = vec![
-            (
-                "disklens scan /home --benchmark".to_string(),
-                vec![
-                    "🚀 Initializing Rayon 16-thread work-stealing pool...".to_string(),
-                    "⚡ Scanning root: /home via async statx batch engine...".to_string(),
-                    "📊 Indexed 1,204,500 inodes across mounted partitions.".to_string(),
-                    "✅ Benchmark complete: 42.5M inodes/s throughput. RSS: 24.8 MB.".to_string(),
-                ],
-                28.4,
-            ),
-        ];
+        let default_history = vec![(
+            "disklens scan /home --benchmark".to_string(),
+            vec![
+                "🚀 Initializing Rayon 16-thread work-stealing pool...".to_string(),
+                "⚡ Scanning root: /home via async statx batch engine...".to_string(),
+                "📊 Indexed 1,204,500 inodes across mounted partitions.".to_string(),
+                "✅ Benchmark complete: 42.5M inodes/s throughput. RSS: 24.8 MB.".to_string(),
+            ],
+            28.4,
+        )];
 
         Self {
             active_tab: EngineTab::Cli,
@@ -42,11 +40,7 @@ impl Default for EngineViewState {
     }
 }
 
-pub fn render_engine_view(
-    ui: &mut Ui,
-    state: &mut EngineViewState,
-    dark_mode: bool,
-) {
+pub fn render_engine_view(ui: &mut Ui, state: &mut EngineViewState, dark_mode: bool) {
     let t = AppTheme::tokens(dark_mode);
 
     egui::ScrollArea::vertical()
@@ -95,37 +89,62 @@ pub fn render_engine_view(
 
                 // 2. Technical Metrics Bento Grid
                 let spacing = 8.0_f32;
+                let card_h = 78.0_f32;
                 if content_w >= 840.0 {
                     let card_w = ((content_w - (spacing * 3.0)) / 4.0).floor();
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = spacing;
-                        render_metric_card(ui, "⚡ Concurrency", "Rayon 16 Threads", "Lock-free crawler", t.accent, &t, card_w);
-                        render_metric_card(ui, "🚀 Throughput", "42.5M Inodes/s", "Async statx engine", t.warning, &t, card_w);
-                        render_metric_card(ui, "🛡️ Safety", "24.8 MB RSS", "Zero GC pauses", t.success, &t, card_w);
-                        render_metric_card(ui, "🖥️ Pipeline", "eframe 0.30", "144 FPS wgpu", t.purple, &t, card_w);
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "⚡ Concurrency", "Rayon 16 Threads", "Lock-free crawler", t.accent, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "🚀 Throughput", "42.5M Inodes/s", "Async statx engine", t.warning, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "🛡️ Safety", "24.8 MB RSS", "Zero GC pauses", t.success, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "🖥️ Pipeline", "eframe 0.30", "144 FPS wgpu", t.purple, &t, card_w, card_h);
+                        });
                     });
                 } else if content_w >= 540.0 {
                     let card_w = ((content_w - spacing) / 2.0).floor();
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = spacing;
-                        render_metric_card(ui, "⚡ Concurrency", "Rayon 16 Threads", "Lock-free crawler", t.accent, &t, card_w);
-                        render_metric_card(ui, "🚀 Throughput", "42.5M Inodes/s", "Async statx engine", t.warning, &t, card_w);
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "⚡ Concurrency", "Rayon 16 Threads", "Lock-free crawler", t.accent, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "🚀 Throughput", "42.5M Inodes/s", "Async statx engine", t.warning, &t, card_w, card_h);
+                        });
                     });
                     ui.add_space(spacing);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = spacing;
-                        render_metric_card(ui, "🛡️ Safety", "24.8 MB RSS", "Zero GC pauses", t.success, &t, card_w);
-                        render_metric_card(ui, "🖥️ Pipeline", "eframe 0.30", "144 FPS wgpu", t.purple, &t, card_w);
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "🛡️ Safety", "24.8 MB RSS", "Zero GC pauses", t.success, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_metric_card(ui, "🖥️ Pipeline", "eframe 0.30", "144 FPS wgpu", t.purple, &t, card_w, card_h);
+                        });
                     });
                 } else {
                     ui.vertical(|ui| {
-                        render_metric_card(ui, "⚡ Concurrency", "Rayon 16-Thread Pool", "Lock-free crawler", t.accent, &t, content_w);
+                        render_metric_card(ui, "⚡ Concurrency", "Rayon 16-Thread Pool", "Lock-free crawler", t.accent, &t, content_w, card_h);
                         ui.add_space(spacing);
-                        render_metric_card(ui, "🚀 Throughput", "42.5M Inodes / Sec", "Async kernel statx batches", t.warning, &t, content_w);
+                        render_metric_card(ui, "🚀 Throughput", "42.5M Inodes / Sec", "Async kernel statx batches", t.warning, &t, content_w, card_h);
                         ui.add_space(spacing);
-                        render_metric_card(ui, "🛡️ Memory Safety", "24.8 MB RSS", "Zero GC pauses", t.success, &t, content_w);
+                        render_metric_card(ui, "🛡️ Memory Safety", "24.8 MB RSS", "Zero GC pauses", t.success, &t, content_w, card_h);
                         ui.add_space(spacing);
-                        render_metric_card(ui, "🖥️ GUI Pipeline", "eframe / egui 0.30", "144 FPS wgpu GPU rasterizer", t.purple, &t, content_w);
+                        render_metric_card(ui, "🖥️ GUI Pipeline", "eframe / egui 0.30", "144 FPS wgpu GPU rasterizer", t.purple, &t, content_w, card_h);
                     });
                 }
 
@@ -188,14 +207,16 @@ fn render_metric_card(
     accent: Color32,
     t: &crate::theme::ThemeTokens,
     width: f32,
+    card_h: f32,
 ) {
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(10.0))
         .show(ui, |ui| {
             ui.set_width(width - 20.0);
+            ui.set_height(card_h - 20.0);
             ui.label(RichText::new(badge).size(10.0).strong().color(accent));
             ui.label(RichText::new(title).size(13.0).strong().color(t.text));
             ui.label(RichText::new(subtitle).size(10.5).color(t.text_muted));
@@ -209,11 +230,21 @@ fn render_cli_tab(
     t: &crate::theme::ThemeTokens,
 ) {
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("Quick Presets:").size(11.0).color(t.text_muted));
+        ui.label(
+            RichText::new("Quick Presets:")
+                .size(11.0)
+                .color(t.text_muted),
+        );
 
         let presets = [
-            ("disklens scan /home --benchmark", "Run throughput benchmark"),
-            ("disklens hogs --limit 20", "Query top space consuming files"),
+            (
+                "disklens scan /home --benchmark",
+                "Run throughput benchmark",
+            ),
+            (
+                "disklens hogs --limit 20",
+                "Query top space consuming files",
+            ),
             ("cargo test --all", "Execute automated test suite"),
             ("disklens mounts", "Inspect /proc/mounts"),
         ];
@@ -234,7 +265,7 @@ fn render_cli_tab(
     // Terminal Container
     egui::Frame::none()
         .fill(Color32::from_rgb(13, 14, 21))
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
@@ -251,15 +282,33 @@ fn render_cli_tab(
                     // History
                     for (cmd, lines, ms) in &state.terminal_history {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("user@linux-desktop").size(11.0).color(t.success));
+                            ui.label(
+                                RichText::new("user@linux-desktop")
+                                    .size(11.0)
+                                    .color(t.success),
+                            );
                             ui.label(RichText::new(":").size(11.0).color(t.text_muted));
                             ui.label(RichText::new("~/disklens").size(11.0).color(t.accent));
                             ui.label(RichText::new("$").size(11.0).strong().color(Color32::WHITE));
-                            ui.label(RichText::new(cmd).monospace().size(11.5).strong().color(Color32::WHITE));
+                            ui.label(
+                                RichText::new(cmd)
+                                    .monospace()
+                                    .size(11.5)
+                                    .strong()
+                                    .color(Color32::WHITE),
+                            );
 
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(RichText::new(format!("{:.1}ms", ms)).monospace().size(10.0).color(t.text_muted));
-                            });
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.label(
+                                        RichText::new(format!("{:.1}ms", ms))
+                                            .monospace()
+                                            .size(10.0)
+                                            .color(t.text_muted),
+                                    );
+                                },
+                            );
                         });
 
                         ui.add_space(2.0);
@@ -286,7 +335,11 @@ fn render_cli_tab(
 
             // Input line
             ui.horizontal(|ui| {
-                ui.label(RichText::new("user@linux-desktop").size(11.0).color(t.success));
+                ui.label(
+                    RichText::new("user@linux-desktop")
+                        .size(11.0)
+                        .color(t.success),
+                );
                 ui.label(RichText::new(":").size(11.0).color(t.text_muted));
                 ui.label(RichText::new("~/disklens").size(11.0).color(t.accent));
                 ui.label(RichText::new("$").size(11.0).strong().color(Color32::WHITE));
@@ -296,7 +349,7 @@ fn render_cli_tab(
                     egui::TextEdit::singleline(&mut state.command_input)
                         .hint_text("Type 'disklens scan /path', 'cargo test', 'help'...")
                         .font(egui::TextStyle::Monospace)
-                        .desired_width(input_w)
+                        .desired_width(input_w),
                 );
 
                 if input_res.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -389,7 +442,9 @@ fn execute_cli_command(state: &mut EngineViewState, cmd: &str) {
         )
     };
 
-    state.terminal_history.push((q.to_string(), lines, duration));
+    state
+        .terminal_history
+        .push((q.to_string(), lines, duration));
 }
 
 fn render_source_tab(
@@ -399,11 +454,31 @@ fn render_source_tab(
     t: &crate::theme::ThemeTokens,
 ) {
     let files = [
-        ("src/main.rs", "Application entry point and eframe configuration", include_str!("../main.rs")),
-        ("src/scanner.rs", "Multi-threaded filesystem scanner using Rayon", include_str!("../scanner.rs")),
-        ("src/models.rs", "Data models, categories, insights, and AnalysisCache", include_str!("../models.rs")),
-        ("src/treemap.rs", "Squarified visual treemap spatial layout algorithm", include_str!("../treemap.rs")),
-        ("src/theme.rs", "Tokyo Night design tokens and visual palette", include_str!("../theme.rs")),
+        (
+            "src/main.rs",
+            "Application entry point and eframe configuration",
+            include_str!("../main.rs"),
+        ),
+        (
+            "src/scanner.rs",
+            "Multi-threaded filesystem scanner using Rayon",
+            include_str!("../scanner.rs"),
+        ),
+        (
+            "src/models.rs",
+            "Data models, categories, insights, and AnalysisCache",
+            include_str!("../models.rs"),
+        ),
+        (
+            "src/treemap.rs",
+            "Squarified visual treemap spatial layout algorithm",
+            include_str!("../treemap.rs"),
+        ),
+        (
+            "src/theme.rs",
+            "Tokyo Night design tokens and visual palette",
+            include_str!("../theme.rs"),
+        ),
     ];
 
     let is_stacked = width < 640.0;
@@ -415,11 +490,24 @@ fn render_source_tab(
                     let is_sel = state.selected_source_idx == idx;
                     let col = if is_sel { t.accent } else { t.text };
 
-                    if ui.add(
-                        egui::Button::new(RichText::new(*fname).size(11.0).monospace().color(col))
-                            .fill(if is_sel { t.bg_elevated } else { Color32::TRANSPARENT })
-                            .stroke(if is_sel { egui::Stroke::new(1.0_f32, t.accent) } else { egui::Stroke::NONE })
-                    ).clicked() {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(*fname).size(11.0).monospace().color(col),
+                            )
+                            .fill(if is_sel {
+                                t.bg_elevated
+                            } else {
+                                Color32::TRANSPARENT
+                            })
+                            .stroke(if is_sel {
+                                egui::Stroke::new(1.0_f32, t.accent)
+                            } else {
+                                egui::Stroke::NONE
+                            }),
+                        )
+                        .clicked()
+                    {
                         state.selected_source_idx = idx;
                     }
                 }
@@ -431,7 +519,7 @@ fn render_source_tab(
 
             egui::Frame::none()
                 .fill(Color32::from_rgb(13, 14, 21))
-                .rounding(6.0_f32)
+                .rounding(8.0_f32)
                 .stroke(egui::Stroke::new(1.0_f32, t.border))
                 .inner_margin(Margin::same(12.0))
                 .show(ui, |ui| {
@@ -439,8 +527,17 @@ fn render_source_tab(
                     ui.set_width(inner_w);
 
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(fname).size(12.0).strong().color(Color32::WHITE));
-                        ui.label(RichText::new(format!("— {}", fdesc)).size(10.5).color(t.text_muted));
+                        ui.label(
+                            RichText::new(fname)
+                                .size(12.0)
+                                .strong()
+                                .color(Color32::WHITE),
+                        );
+                        ui.label(
+                            RichText::new(format!("— {}", fdesc))
+                                .size(10.5)
+                                .color(t.text_muted),
+                        );
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.small_button("📋 Copy").clicked() {
@@ -453,11 +550,14 @@ fn render_source_tab(
                     ui.separator();
 
                     let code_h = (ui.available_height() - 40.0).clamp(260.0, 600.0);
-                    egui::ScrollArea::both()
-                        .max_height(code_h)
-                        .show(ui, |ui| {
-                            ui.label(RichText::new(code).monospace().size(10.5).color(Color32::from_rgb(192, 202, 245)));
-                        });
+                    egui::ScrollArea::both().max_height(code_h).show(ui, |ui| {
+                        ui.label(
+                            RichText::new(code)
+                                .monospace()
+                                .size(10.5)
+                                .color(Color32::from_rgb(192, 202, 245)),
+                        );
+                    });
                 });
         });
     } else {
@@ -465,14 +565,19 @@ fn render_source_tab(
             // Left sidebar: file selector
             egui::Frame::none()
                 .fill(t.bg_elevated)
-                .rounding(6.0_f32)
+                .rounding(8.0_f32)
                 .stroke(egui::Stroke::new(1.0_f32, t.border))
                 .inner_margin(Margin::same(8.0))
                 .show(ui, |ui| {
                     ui.set_width(170.0);
 
                     ui.vertical(|ui| {
-                        ui.label(RichText::new("PROJECT SOURCE").size(10.0).strong().color(t.text_muted));
+                        ui.label(
+                            RichText::new("PROJECT SOURCE")
+                                .size(10.0)
+                                .strong()
+                                .color(t.text_muted),
+                        );
                         ui.add_space(4.0);
 
                         for (idx, (fname, _, _)) in files.iter().enumerate() {
@@ -481,10 +586,20 @@ fn render_source_tab(
 
                             let btn = ui.add_sized(
                                 [170.0, 24.0],
-                                egui::Button::new(RichText::new(*fname).size(11.0).monospace().color(col))
-                                    .fill(if is_sel { Color32::from_rgb(41, 46, 66) } else { Color32::TRANSPARENT })
-                                    .stroke(if is_sel { egui::Stroke::new(1.0_f32, t.accent) } else { egui::Stroke::NONE })
-                                    .rounding(4.0_f32)
+                                egui::Button::new(
+                                    RichText::new(*fname).size(11.0).monospace().color(col),
+                                )
+                                .fill(if is_sel {
+                                    Color32::from_rgb(41, 46, 66)
+                                } else {
+                                    Color32::TRANSPARENT
+                                })
+                                .stroke(if is_sel {
+                                    egui::Stroke::new(1.0_f32, t.accent)
+                                } else {
+                                    egui::Stroke::NONE
+                                })
+                                .rounding(4.0_f32),
                             );
 
                             if btn.clicked() {
@@ -501,7 +616,7 @@ fn render_source_tab(
             // Code viewer
             egui::Frame::none()
                 .fill(Color32::from_rgb(13, 14, 21))
-                .rounding(6.0_f32)
+                .rounding(8.0_f32)
                 .stroke(egui::Stroke::new(1.0_f32, t.border))
                 .inner_margin(Margin::same(12.0))
                 .show(ui, |ui| {
@@ -509,8 +624,17 @@ fn render_source_tab(
                     ui.set_width(inner_w);
 
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(fname).size(12.5).strong().color(Color32::WHITE));
-                        ui.label(RichText::new(format!("— {}", fdesc)).size(10.5).color(t.text_muted));
+                        ui.label(
+                            RichText::new(fname)
+                                .size(12.5)
+                                .strong()
+                                .color(Color32::WHITE),
+                        );
+                        ui.label(
+                            RichText::new(format!("— {}", fdesc))
+                                .size(10.5)
+                                .color(t.text_muted),
+                        );
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.small_button("📋 Copy Code").clicked() {
@@ -530,11 +654,14 @@ fn render_source_tab(
                     ui.add_space(4.0);
 
                     let code_h = (ui.available_height() - 40.0).clamp(280.0, 640.0);
-                    egui::ScrollArea::both()
-                        .max_height(code_h)
-                        .show(ui, |ui| {
-                            ui.label(RichText::new(code).monospace().size(10.5).color(Color32::from_rgb(192, 202, 245)));
-                        });
+                    egui::ScrollArea::both().max_height(code_h).show(ui, |ui| {
+                        ui.label(
+                            RichText::new(code)
+                                .monospace()
+                                .size(10.5)
+                                .color(Color32::from_rgb(192, 202, 245)),
+                        );
+                    });
                 });
         });
     }
@@ -542,34 +669,83 @@ fn render_source_tab(
 
 fn render_crates_tab(ui: &mut Ui, width: f32, t: &crate::theme::ThemeTokens) {
     let crates = [
-        ("eframe / egui", "0.30.0", "Immediate-mode GUI library with wgpu/Wayland backend", "GUI & Hardware Rendering"),
-        ("rayon", "1.10.0", "Work-stealing data parallelism library for multi-threaded traversal", "Concurrency & Scheduling"),
-        ("sysinfo", "0.33.0", "System, mount points, and process inspection library", "System & Hardware"),
-        ("trash", "5.2.0", "Cross-platform FreeDesktop Trash specification implementation", "Filesystem Cleanup Safety"),
-        ("serde / serde_json", "1.0.217", "Fast JSON serialization/deserialization for reports and cache", "Serialization"),
-        ("chrono", "0.4.39", "Date and time library for historical snapshots and metrics", "Temporal Utilities"),
-        ("rfd", "0.15.2", "Native Linux file and folder picker dialogs (GTK/XDG Portal)", "Desktop Integration"),
+        (
+            "eframe / egui",
+            "0.30.0",
+            "Immediate-mode GUI library with wgpu/Wayland backend",
+            "GUI & Hardware Rendering",
+        ),
+        (
+            "rayon",
+            "1.10.0",
+            "Work-stealing data parallelism library for multi-threaded traversal",
+            "Concurrency & Scheduling",
+        ),
+        (
+            "sysinfo",
+            "0.33.0",
+            "System, mount points, and process inspection library",
+            "System & Hardware",
+        ),
+        (
+            "trash",
+            "5.2.0",
+            "Cross-platform FreeDesktop Trash specification implementation",
+            "Filesystem Cleanup Safety",
+        ),
+        (
+            "serde / serde_json",
+            "1.0.217",
+            "Fast JSON serialization/deserialization for reports and cache",
+            "Serialization",
+        ),
+        (
+            "chrono",
+            "0.4.39",
+            "Date and time library for historical snapshots and metrics",
+            "Temporal Utilities",
+        ),
+        (
+            "rfd",
+            "0.15.2",
+            "Native Linux file and folder picker dialogs (GTK/XDG Portal)",
+            "Desktop Integration",
+        ),
     ];
 
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
             let inner_w = width - 24.0;
             ui.set_width(inner_w);
 
-            ui.label(RichText::new("CORE CRATE DEPENDENCIES (Cargo.toml)").size(11.0).strong().color(t.text_muted));
+            ui.label(
+                RichText::new("CORE CRATE DEPENDENCIES (Cargo.toml)")
+                    .size(11.0)
+                    .strong()
+                    .color(t.text_muted),
+            );
             ui.add_space(6.0);
             ui.separator();
             ui.add_space(4.0);
 
             // Table Header
             ui.horizontal(|ui| {
-                ui.add_sized([160.0, 18.0], egui::Label::new(RichText::new("Crate Name").strong().color(t.text_muted)));
-                ui.add_sized([80.0, 18.0], egui::Label::new(RichText::new("Version").strong().color(t.text_muted)));
-                ui.add_sized([160.0, 18.0], egui::Label::new(RichText::new("Domain").strong().color(t.text_muted)));
+                ui.add_sized(
+                    [160.0, 18.0],
+                    egui::Label::new(RichText::new("Crate Name").strong().color(t.text_muted)),
+                );
+                ui.add_sized(
+                    [80.0, 18.0],
+                    egui::Label::new(RichText::new("Version").strong().color(t.text_muted)),
+                );
+                ui.add_sized(
+                    [160.0, 18.0],
+                    egui::Label::new(RichText::new("Domain").strong().color(t.text_muted)),
+                );
                 ui.label(RichText::new("Description").strong().color(t.text_muted));
             });
 
@@ -577,9 +753,20 @@ fn render_crates_tab(ui: &mut Ui, width: f32, t: &crate::theme::ThemeTokens) {
 
             for (cname, ver, desc, role) in crates {
                 ui.horizontal(|ui| {
-                    ui.add_sized([160.0, 22.0], egui::Label::new(RichText::new(cname).size(12.0).strong().color(t.accent)));
-                    ui.add_sized([80.0, 22.0], egui::Label::new(RichText::new(ver).size(11.5).monospace().color(t.success)));
-                    ui.add_sized([160.0, 22.0], egui::Label::new(RichText::new(role).size(11.5).color(t.text_secondary)));
+                    ui.add_sized(
+                        [160.0, 22.0],
+                        egui::Label::new(RichText::new(cname).size(12.0).strong().color(t.accent)),
+                    );
+                    ui.add_sized(
+                        [80.0, 22.0],
+                        egui::Label::new(
+                            RichText::new(ver).size(11.5).monospace().color(t.success),
+                        ),
+                    );
+                    ui.add_sized(
+                        [160.0, 22.0],
+                        egui::Label::new(RichText::new(role).size(11.5).color(t.text_secondary)),
+                    );
                     ui.label(RichText::new(desc).size(11.0).color(t.text_muted));
                 });
                 ui.add_space(2.0);
@@ -603,7 +790,7 @@ StartupNotify=true
 
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
@@ -611,7 +798,12 @@ StartupNotify=true
             ui.set_width(inner_w);
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("LINUX FREEDESKTOP .DESKTOP SPECIFICATION").size(11.0).strong().color(t.text_muted));
+                ui.label(
+                    RichText::new("LINUX FREEDESKTOP .DESKTOP SPECIFICATION")
+                        .size(11.0)
+                        .strong()
+                        .color(t.text_muted),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.small_button("📋 Copy Specification").clicked() {
                         ui.output_mut(|o| o.copied_text = desktop_entry.to_string());
@@ -629,7 +821,12 @@ StartupNotify=true
                 .inner_margin(Margin::same(10.0))
                 .show(ui, |ui| {
                     ui.set_width(inner_w - 20.0);
-                    ui.label(RichText::new(desktop_entry).monospace().size(11.5).color(Color32::from_rgb(192, 202, 245)));
+                    ui.label(
+                        RichText::new(desktop_entry)
+                            .monospace()
+                            .size(11.5)
+                            .color(Color32::from_rgb(192, 202, 245)),
+                    );
                 });
         });
 }

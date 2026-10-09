@@ -10,6 +10,7 @@ pub trait FileSystem: Send + Sync {
     fn open_terminal(&self, path: &Path) -> Result<(), String>;
     fn move_to_trash(&self, path: &Path) -> Result<(), String>;
     fn permanent_delete(&self, path: &Path) -> Result<(), String>;
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), String>;
 }
 
 /// Real operating system file system operations.
@@ -36,6 +37,10 @@ impl FileSystem for RealFileSystem {
     fn permanent_delete(&self, path: &Path) -> Result<(), String> {
         FileActions::permanent_delete(path)
     }
+
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), String> {
+        FileActions::rename(from, to)
+    }
 }
 
 /// In-memory mock file system for unit tests and headless environments.
@@ -44,6 +49,7 @@ pub struct MockFileSystem {
     pub opened_paths: Mutex<Vec<PathBuf>>,
     pub trashed_paths: Mutex<Vec<PathBuf>>,
     pub deleted_paths: Mutex<Vec<PathBuf>>,
+    pub renamed_paths: Mutex<Vec<(PathBuf, PathBuf)>>,
     pub simulate_error: Mutex<Option<String>>,
 }
 
@@ -98,6 +104,17 @@ impl FileSystem for MockFileSystem {
             return Err(err.clone());
         }
         self.deleted_paths.lock().unwrap().push(path.to_path_buf());
+        Ok(())
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> Result<(), String> {
+        if let Some(err) = self.simulate_error.lock().unwrap().as_ref() {
+            return Err(err.clone());
+        }
+        self.renamed_paths
+            .lock()
+            .unwrap()
+            .push((from.to_path_buf(), to.to_path_buf()));
         Ok(())
     }
 }
@@ -178,5 +195,21 @@ impl FileActions {
                 Err(e) => Err(format!("Failed to remove file: {}", e)),
             }
         }
+    }
+
+    pub fn rename(from: &Path, to: &Path) -> Result<(), String> {
+        fs::rename(from, to).map_err(|e| format!("Failed to rename: {}", e))
+    }
+
+    pub fn preview_text(path: &Path, max_bytes: usize) -> Result<String, String> {
+        use std::io::Read;
+        let mut file = fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
+        let mut buffer = vec![0u8; max_bytes];
+        let bytes_read = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+        buffer.truncate(bytes_read);
+        String::from_utf8(buffer.clone())
+            .or_else(|_| Ok(String::from_utf8_lossy(&buffer).to_string()))
     }
 }

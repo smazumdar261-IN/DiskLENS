@@ -25,7 +25,10 @@ fn test_qa_01_application_startup_and_theme() {
         app.render_app_ui(ctx);
     });
 
-    assert!(!output.shapes.is_empty(), "Application must render initial frame cleanly");
+    assert!(
+        !output.shapes.is_empty(),
+        "Application must render initial frame cleanly"
+    );
 }
 
 #[test]
@@ -33,15 +36,29 @@ fn test_qa_02_real_mount_detection() {
     let mut disks = Disks::new();
     disks.refresh(true);
     let list = disks.list();
-    assert!(!list.is_empty(), "Must detect at least 1 real Linux mount point");
+    assert!(
+        !list.is_empty(),
+        "Must detect at least 1 real Linux mount point"
+    );
 
     let root_disk = list.iter().find(|d| d.mount_point() == Path::new("/"));
     assert!(root_disk.is_some(), "Must detect root '/' filesystem");
     let root = root_disk.unwrap();
-    assert!(root.total_space() > 0, "Root filesystem total space must be > 0");
-    assert!(root.available_space() > 0, "Root filesystem available space must be > 0");
-    println!("Verified Real Linux Mount: {:?} [FS: {:?}, Total: {} GB, Avail: {} GB]",
-        root.mount_point(), root.file_system(), root.total_space() / (1024*1024*1024), root.available_space() / (1024*1024*1024));
+    assert!(
+        root.total_space() > 0,
+        "Root filesystem total space must be > 0"
+    );
+    assert!(
+        root.available_space() > 0,
+        "Root filesystem available space must be > 0"
+    );
+    println!(
+        "Verified Real Linux Mount: {:?} [FS: {:?}, Total: {} GB, Avail: {} GB]",
+        root.mount_point(),
+        root.file_system(),
+        root.total_space() / (1024 * 1024 * 1024),
+        root.available_space() / (1024 * 1024 * 1024)
+    );
 }
 
 #[test]
@@ -51,7 +68,10 @@ fn test_qa_03_real_filesystem_scan_pause_resume_cancel() {
 
     for i in 1..=20 {
         let fpath = temp_dir.join(format!("sub1/file_{}.dat", i));
-        File::create(&fpath).unwrap().write_all(&vec![0xAA; 100 * 1024]).unwrap();
+        File::create(&fpath)
+            .unwrap()
+            .write_all(&vec![0xAA; 100 * 1024])
+            .unwrap();
     }
 
     let (tx, rx) = crossbeam_channel::unbounded();
@@ -80,7 +100,10 @@ fn test_qa_03_real_filesystem_scan_pause_resume_cancel() {
         }
     }
 
-    assert!(received_complete, "Scanner must complete successfully on real filesystem");
+    assert!(
+        received_complete,
+        "Scanner must complete successfully on real filesystem"
+    );
     let _ = fs::remove_dir_all(&temp_dir);
 }
 
@@ -101,13 +124,36 @@ fn test_qa_04_duplicate_finder_with_known_duplicates() {
     File::create(&f1).unwrap().write_all(&dup_payload).unwrap();
     File::create(&f2).unwrap().write_all(&dup_payload).unwrap();
     File::create(&f3).unwrap().write_all(&dup_payload).unwrap();
-    File::create(&f_uniq).unwrap().write_all(&uniq_payload).unwrap();
+    File::create(&f_uniq)
+        .unwrap()
+        .write_all(&uniq_payload)
+        .unwrap();
 
     let mut root_node = FileNode::new_dir("temp".to_string(), temp_dir.clone(), None);
-    root_node.children.push(FileNode::new_file("doc_original.pdf".to_string(), f1, dup_payload.len() as u64, None));
-    root_node.children.push(FileNode::new_file("doc_copy1.pdf".to_string(), f2, dup_payload.len() as u64, None));
-    root_node.children.push(FileNode::new_file("doc_copy2.pdf".to_string(), f3, dup_payload.len() as u64, None));
-    root_node.children.push(FileNode::new_file("doc_different.pdf".to_string(), f_uniq, uniq_payload.len() as u64, None));
+    root_node.children.push(FileNode::new_file(
+        "doc_original.pdf".to_string(),
+        f1,
+        dup_payload.len() as u64,
+        None,
+    ));
+    root_node.children.push(FileNode::new_file(
+        "doc_copy1.pdf".to_string(),
+        f2,
+        dup_payload.len() as u64,
+        None,
+    ));
+    root_node.children.push(FileNode::new_file(
+        "doc_copy2.pdf".to_string(),
+        f3,
+        dup_payload.len() as u64,
+        None,
+    ));
+    root_node.children.push(FileNode::new_file(
+        "doc_different.pdf".to_string(),
+        f_uniq,
+        uniq_payload.len() as u64,
+        None,
+    ));
 
     let groups = DuplicateDetector::find_duplicates(&root_node, 1024 * 1024, None);
 
@@ -173,7 +219,10 @@ fn test_qa_05_storage_history_persistence_and_growth_math() {
 
     let history_file = temp_dir.join("history.json");
     let json = serde_json::to_string_pretty(&snapshots).unwrap();
-    File::create(&history_file).unwrap().write_all(json.as_bytes()).unwrap();
+    File::create(&history_file)
+        .unwrap()
+        .write_all(json.as_bytes())
+        .unwrap();
 
     // Verify snapshot reading
     let loaded: Vec<ScanSnapshotRecord> = serde_json::from_str(&json).unwrap();
@@ -186,7 +235,8 @@ fn test_qa_05_storage_history_persistence_and_growth_math() {
 
 #[test]
 fn test_qa_06_settings_persistence_and_exclusion_enforcement() {
-    let temp_config_dir = std::env::temp_dir().join(format!("disklens_cfg_test_{}", std::process::id()));
+    let temp_config_dir =
+        std::env::temp_dir().join(format!("disklens_cfg_test_{}", std::process::id()));
     fs::create_dir_all(&temp_config_dir).unwrap();
     let settings_file = temp_config_dir.join("settings.json");
 
@@ -196,7 +246,10 @@ fn test_qa_06_settings_persistence_and_exclusion_enforcement() {
     settings.theme_preference = ThemePreference::Dark;
 
     let json = serde_json::to_string_pretty(&settings).unwrap();
-    File::create(&settings_file).unwrap().write_all(json.as_bytes()).unwrap();
+    File::create(&settings_file)
+        .unwrap()
+        .write_all(json.as_bytes())
+        .unwrap();
 
     let loaded: AppSettings = serde_json::from_str(&json).unwrap();
     assert_eq!(loaded.worker_threads, 16);
@@ -239,8 +292,18 @@ fn test_qa_07_all_8_tabs_rendered_across_7_resolutions() {
 
     let ctx = egui::Context::default();
     let mut fake_root = FileNode::new_dir("root".to_string(), PathBuf::from("/home/user"), None);
-    fake_root.children.push(FileNode::new_file("movie.mp4".to_string(), PathBuf::from("/home/user/movie.mp4"), 4 * 1024 * 1024 * 1024, None));
-    fake_root.children.push(FileNode::new_file("doc.pdf".to_string(), PathBuf::from("/home/user/doc.pdf"), 50 * 1024 * 1024, None));
+    fake_root.children.push(FileNode::new_file(
+        "movie.mp4".to_string(),
+        PathBuf::from("/home/user/movie.mp4"),
+        4 * 1024 * 1024 * 1024,
+        None,
+    ));
+    fake_root.children.push(FileNode::new_file(
+        "doc.pdf".to_string(),
+        PathBuf::from("/home/user/doc.pdf"),
+        50 * 1024 * 1024,
+        None,
+    ));
     fake_root.size = 4 * 1024 * 1024 * 1024 + 50 * 1024 * 1024;
     fake_root.file_count = 2;
 
@@ -262,7 +325,13 @@ fn test_qa_07_all_8_tabs_rendered_across_7_resolutions() {
                 app.render_app_ui(ctx);
             });
 
-            assert!(!output.shapes.is_empty(), "Failed rendering {:?} at {}x{}", tab, w, h);
+            assert!(
+                !output.shapes.is_empty(),
+                "Failed rendering {:?} at {}x{}",
+                tab,
+                w,
+                h
+            );
         }
     }
 }

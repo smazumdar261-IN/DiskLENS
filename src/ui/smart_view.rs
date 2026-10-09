@@ -67,7 +67,7 @@ pub fn render_smart_view(
                 // 1. Top Banner: S.M.A.R.T. Health Score
                 egui::Frame::none()
                     .fill(t.bg_elevated)
-                    .rounding(6.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.success))
                     .inner_margin(Margin::same(16.0))
                     .show(ui, |ui| {
@@ -118,6 +118,7 @@ pub fn render_smart_view(
                 // 2. 4 Health Gauges
                 let num_cols = if content_w > 860.0 { 4 } else if content_w > 560.0 { 2 } else { 1 };
                 let gauge_w = ((content_w - (10.0 * (num_cols as f32 - 1.0))) / num_cols as f32).floor();
+                let gauge_h = 88.0_f32;
 
                 let gauges = [
                     ("ESTIMATED LIFE REMAINING", format!("{}%", dev.health_percent), "TBW wear-level optimal", t.success),
@@ -127,22 +128,28 @@ pub fn render_smart_view(
                 ];
 
                 for chunk in gauges.chunks(num_cols) {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = 10.0;
                         for (title, value, subtitle, color) in chunk {
-                            egui::Frame::none()
-                                .fill(t.bg_container)
-                                .rounding(6.0_f32)
-                                .stroke(egui::Stroke::new(1.0_f32, t.border))
-                                .inner_margin(Margin::same(12.0))
-                                .show(ui, |ui| {
-                                    ui.set_width(gauge_w - 24.0);
-                                    ui.label(RichText::new(*title).size(10.0).monospace().color(t.text_muted));
-                                    ui.add_space(2.0);
-                                    ui.label(RichText::new(value).size(22.0).strong().color(*color));
-                                    ui.add_space(2.0);
-                                    ui.label(RichText::new(*subtitle).size(10.0).color(t.text_secondary));
-                                });
+                            ui.allocate_ui_with_layout(egui::vec2(gauge_w, gauge_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                ui.set_max_width(gauge_w);
+                                egui::Frame::none()
+                                    .fill(t.bg_container)
+                                    .rounding(8.0_f32)
+                                    .stroke(egui::Stroke::new(1.0_f32, t.border))
+                                    .inner_margin(Margin::same(12.0))
+                                    .show(ui, |ui| {
+                                        ui.set_width(ui.available_width());
+                                        ui.set_height(gauge_h - 24.0);
+                                        ui.vertical(|ui| {
+                                            ui.label(RichText::new(*title).size(10.0).monospace().color(t.text_muted));
+                                            ui.add_space(2.0);
+                                            ui.label(RichText::new(value).size(22.0).strong().color(*color));
+                                            ui.add_space(2.0);
+                                            ui.add(egui::Label::new(RichText::new(*subtitle).size(10.0).color(t.text_secondary)).truncate());
+                                        });
+                                    });
+                            });
                         }
                     });
                     ui.add_space(8.0);
@@ -167,7 +174,7 @@ pub fn render_smart_view(
                 if !dev.attributes.is_empty() {
                     egui::Frame::none()
                         .fill(t.bg_container)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, t.border))
                         .inner_margin(Margin::same(12.0))
                         .show(ui, |ui| {

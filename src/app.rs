@@ -171,7 +171,9 @@ impl AnalysisSession {
     pub fn set_ready(&mut self, root: Box<FileNode>) {
         self.is_scanning = false;
         self.scan_error = None;
-        self.analysis_state = AnalysisState::Ready { target_path: root.path.clone() };
+        self.analysis_state = AnalysisState::Ready {
+            target_path: root.path.clone(),
+        };
         self.analysis_cache = Some(AnalysisCache::build(&root));
         self.scanned_root = Some(root);
     }
@@ -197,6 +199,19 @@ impl AnalysisSession {
             self.analysis_cache = Some(AnalysisCache::build(root));
         }
     }
+
+    pub fn rename_node(&mut self, from: &Path, to: &Path, new_name: &str) {
+        if let Some(root) = &mut self.scanned_root {
+            root.rename_path(from, to, new_name);
+            self.analysis_cache = Some(AnalysisCache::build(root));
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppNavLocation {
+    pub tab: ActiveTab,
+    pub path: PathBuf,
 }
 
 pub struct DiskLensApp {
@@ -224,8 +239,9 @@ pub struct DiskLensApp {
     pub command_palette_state: CommandPaletteState,
     pub modals: ModalManager,
     pub dark_mode: bool,
+    pub nav_history: Vec<AppNavLocation>,
+    pub nav_history_index: usize,
 }
-
 
 impl Default for DiskLensApp {
     fn default() -> Self {
@@ -257,6 +273,8 @@ impl Default for DiskLensApp {
             command_palette_state: CommandPaletteState::default(),
             modals: ModalManager::new(),
             dark_mode,
+            nav_history: Vec::new(),
+            nav_history_index: 0,
         }
     }
 }
@@ -264,12 +282,14 @@ impl Default for DiskLensApp {
 impl DiskLensApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         AppTheme::setup_fonts(&cc.egui_ctx);
-        let app = Self::default();
+        let mut app = Self::default();
         if app.dark_mode {
             AppTheme::apply_dark(&cc.egui_ctx);
         } else {
             AppTheme::apply_light(&cc.egui_ctx);
         }
+        // Pre-warm Safe Trash discovery in non-blocking background thread
+        app.safe_trash_state.ensure_loaded();
         app
     }
 
@@ -295,11 +315,89 @@ impl DiskLensApp {
         }
     }
 
+    pub fn can_go_back(&self) -> bool {
+        self.nav_history_index > 0
+    }
+
+    pub fn can_go_forward(&self) -> bool {
+        !self.nav_history.is_empty() && self.nav_history_index + 1 < self.nav_history.len()
+    }
+
+    pub fn go_back(&mut self) -> bool {
+        if self.can_go_back() {
+            self.nav_history_index -= 1;
+            let loc = self.nav_history[self.nav_history_index].clone();
+            self.apply_nav_location(loc);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn go_forward(&mut self) -> bool {
+        if self.can_go_forward() {
+            self.nav_history_index += 1;
+            let loc = self.nav_history[self.nav_history_index].clone();
+            self.apply_nav_location(loc);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn apply_nav_location(&mut self, loc: AppNavLocation) {
+        self.selected_tab = loc.tab;
+        if !loc.path.as_os_str().is_empty() {
+            self.overview_state.navigate_to(loc.path.clone());
+            self.treemap_state.current_path = loc.path.clone();
+            self.treemap_state.selected_item = None;
+            self.tree_state.current_path = loc.path;
+        }
+    }
+
+    pub fn push_nav_location(&mut self, tab: ActiveTab, path: PathBuf) {
+        if let Some(curr) = self.nav_history.get(self.nav_history_index) {
+            if curr.tab == tab && curr.path == path {
+                return;
+            }
+        }
+        if !self.nav_history.is_empty() && self.nav_history_index + 1 < self.nav_history.len() {
+            self.nav_history.truncate(self.nav_history_index + 1);
+        }
+        self.nav_history.push(AppNavLocation { tab, path });
+        self.nav_history_index = self.nav_history.len().saturating_sub(1);
+    }
+
     /// Attempts to navigate to the specified tab.
     /// Returns true if navigation was successful, false if the tab is currently unavailable.
     pub fn navigate_to(&mut self, tab: ActiveTab) -> bool {
         if self.is_view_available(tab) {
             self.selected_tab = tab;
+            if tab == ActiveTab::SafeTrash {
+                self.safe_trash_state.ensure_loaded();
+            }
+            let p = if !self.overview_state.current_path.as_os_str().is_empty() {
+                self.overview_state.current_path.clone()
+            } else if let Some(root) = &self.session.scanned_root {
+                root.path.clone()
+            } else {
+                PathBuf::new()
+            };
+            self.push_nav_location(tab, p);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn navigate_to_path(&mut self, tab: ActiveTab, path: PathBuf) -> bool {
+        if self.is_view_available(tab) {
+            self.selected_tab = tab;
+            self.overview_state.navigate_to(path.clone());
+            self.treemap_state.current_path = path.clone();
+            self.treemap_state.selected_item = None;
+            self.tree_state.current_path = path.clone();
+            self.push_nav_location(tab, path);
             true
         } else {
             false
@@ -312,10 +410,13 @@ impl DiskLensApp {
                 self.navigate_to(tab);
             }
             OverviewAction::NavigateToPath(tab, path) => {
-                self.tree_state.navigate_to(path.clone());
-                self.overview_state.navigate_to(path.clone());
-                self.treemap_state.current_path = path;
-                self.navigate_to(tab);
+                self.navigate_to_path(tab, path);
+            }
+            OverviewAction::GoBack => {
+                self.go_back();
+            }
+            OverviewAction::GoForward => {
+                self.go_forward();
             }
             OverviewAction::OpenInFileManager(path) => {
                 if let Err(e) = self.file_system.open_in_file_manager(&path) {
@@ -336,17 +437,29 @@ impl DiskLensApp {
                 }
             }
             OverviewAction::MoveToTrash(path, size) => {
-                self.modals.pending_confirm = Some(crate::ui::modals::ConfirmAction::MoveToTrash(path, size));
+                self.modals.pending_confirm =
+                    Some(crate::ui::modals::ConfirmAction::MoveToTrash(path, size));
             }
             OverviewAction::PermanentDelete(path, size) => {
-                self.modals.pending_confirm = Some(crate::ui::modals::ConfirmAction::PermanentDelete(path, size));
+                self.modals.pending_confirm = Some(
+                    crate::ui::modals::ConfirmAction::PermanentDelete(path, size),
+                );
+            }
+            OverviewAction::PreviewFile(path) => {
+                self.modals.pending_preview = Some(path);
+            }
+            OverviewAction::RenameItem(path, name) => {
+                self.modals.pending_rename = Some((path, name));
             }
             OverviewAction::CopyPath(path) => {
                 let p_str = path.display().to_string();
-                self.modals.show_toast(format!("Copied path: {}", p_str), false);
+                self.modals
+                    .show_toast(format!("Copied path: {}", p_str), false);
             }
             OverviewAction::ElevatePkexec(path) => {
-                let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("/home/sayantan/disk-analyzer-gui/target/release/disk-lens"));
+                let exe = std::env::current_exe().unwrap_or_else(|_| {
+                    PathBuf::from("/home/sayantan/disk-analyzer-gui/target/release/disk-lens")
+                });
                 let p_str = path.display().to_string();
                 let spawn_res = std::process::Command::new("pkexec")
                     .arg(&exe)
@@ -354,13 +467,18 @@ impl DiskLensApp {
                     .spawn();
                 match spawn_res {
                     Ok(_) => {
-                        self.modals.show_toast("Launched elevated DiskLens via pkexec".to_string(), false);
+                        self.modals
+                            .show_toast("Launched elevated DiskLens via pkexec".to_string(), false);
                         self.modals.log("INFO", "Spawned pkexec elevation process");
                     }
                     Err(e) => {
                         let cmd_str = format!("pkexec {} \"{}\"", exe.display(), p_str);
-                        self.modals.show_toast(format!("Elevation error: {}. Run: {}", e, cmd_str), true);
-                        self.modals.log("ERROR", &format!("pkexec launch failed: {}. Manual command: {}", e, cmd_str));
+                        self.modals
+                            .show_toast(format!("Elevation error: {}. Run: {}", e, cmd_str), true);
+                        self.modals.log(
+                            "ERROR",
+                            &format!("pkexec launch failed: {}. Manual command: {}", e, cmd_str),
+                        );
                     }
                 }
             }
@@ -392,8 +510,15 @@ impl DiskLensApp {
         if !path.exists() {
             let err_msg = format!("Target path does not exist: {}", path.display());
             self.session.set_failed(path.clone(), err_msg.clone());
-            self.modals.show_toast(format!("Path not found: {}", path.display()), true);
-            self.modals.log("ERROR", &format!("Target validation failed: '{}' does not exist", path.display()));
+            self.modals
+                .show_toast(format!("Path not found: {}", path.display()), true);
+            self.modals.log(
+                "ERROR",
+                &format!(
+                    "Target validation failed: '{}' does not exist",
+                    path.display()
+                ),
+            );
             return;
         }
 
@@ -409,7 +534,8 @@ impl DiskLensApp {
         let (handle, rx) = self.scan_service.start_scan(path.clone(), settings);
         self.scan_handle = Some(handle);
         self.scan_receiver = Some(rx);
-        self.modals.log("INFO", &format!("Initiated scan on {}", path.display()));
+        self.modals
+            .log("INFO", &format!("Initiated scan on {}", path.display()));
     }
 
     fn cancel_scan(&mut self) {
@@ -465,16 +591,22 @@ impl DiskLensApp {
                         ),
                         false,
                     );
-                    self.modals.log("INFO", &format!("Scan complete: {} files, {} dirs in {:.2}s", root.file_count, root.dir_count, elapsed));
+                    self.modals.log(
+                        "INFO",
+                        &format!(
+                            "Scan complete: {} files, {} dirs in {:.2}s",
+                            root.file_count, root.dir_count, elapsed
+                        ),
+                    );
                     self.tree_state.current_path = root.path.clone();
                     self.tree_state.history = vec![root.path.clone()];
                     self.tree_state.history_index = 0;
                     self.treemap_state.current_path = root.path.clone();
                     self.overview_state.current_path = root.path.clone();
-                    self.overview_state.history = vec![root.path.clone()];
-                    self.overview_state.history_index = 0;
+                    let root_p = root.path.clone();
                     self.session.set_ready(root);
                     self.selected_tab = ActiveTab::Overview;
+                    self.push_nav_location(ActiveTab::Overview, root_p);
                 }
                 ScanMessage::Cancelled => {
                     self.scan_handle = None;
@@ -500,7 +632,28 @@ impl DiskLensApp {
     fn remove_node_from_tree(&mut self, target_path: &Path) {
         self.session.remove_node(target_path);
         self.duplicates_state.has_analyzed = false;
-        self.modals.log("INFO", &format!("Removed node {} from analysis cache", target_path.display()));
+        self.modals.log(
+            "INFO",
+            &format!("Removed node {} from analysis cache", target_path.display()),
+        );
+    }
+
+    fn rename_node_in_tree(&mut self, from: &Path, to: &Path, new_name: &str) {
+        self.session.rename_node(from, to, new_name);
+        self.duplicates_state.has_analyzed = false;
+        if self.overview_state.current_path == *from {
+            self.overview_state.current_path = to.to_path_buf();
+        }
+        if self.treemap_state.current_path == *from {
+            self.treemap_state.current_path = to.to_path_buf();
+        }
+        if self.tree_state.current_path == *from {
+            self.tree_state.current_path = to.to_path_buf();
+        }
+        self.modals.log(
+            "INFO",
+            &format!("Renamed node {} to {}", from.display(), to.display()),
+        );
     }
 
     fn export_report(&mut self, is_json: bool) {
@@ -536,14 +689,16 @@ impl DiskLensApp {
                 root.collect_extension_stats(&mut ext_stats);
                 let ext_summaries: Vec<ExtensionSummary> = ext_stats
                     .into_iter()
-                    .map(|(ext, (count, app_size, alloc_size, cat))| ExtensionSummary {
-                        extension: ext,
-                        count,
-                        total_size: app_size,
-                        total_allocated_size: alloc_size,
-                        category: cat,
-                        percentage: (app_size as f32 / total_size as f32) * 100.0,
-                    })
+                    .map(
+                        |(ext, (count, app_size, alloc_size, cat))| ExtensionSummary {
+                            extension: ext,
+                            count,
+                            total_size: app_size,
+                            total_allocated_size: alloc_size,
+                            category: cat,
+                            percentage: (app_size as f32 / total_size as f32) * 100.0,
+                        },
+                    )
                     .collect();
 
                 let mut largest = Vec::new();
@@ -641,8 +796,16 @@ impl DiskLensApp {
         // Global Keyboard Shortcuts (Ctrl+K, 1-8, C, M, H, L, D, R, T, S / Comma, Esc)
         let is_any_text_focused = ctx.memory(|m| m.focused().is_some());
         if !is_any_text_focused {
-            if ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::K)) {
+            if ctx
+                .input(|i| (i.modifiers.ctrl || i.modifiers.command) && i.key_pressed(egui::Key::K))
+            {
                 self.command_palette_state.is_open = !self.command_palette_state.is_open;
+            }
+            if ctx.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowLeft)) {
+                self.go_back();
+            }
+            if ctx.input(|i| i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight)) {
+                self.go_forward();
             }
             if ctx.input(|i| i.key_pressed(egui::Key::Num1)) {
                 self.navigate_to(ActiveTab::Overview);
@@ -718,9 +881,19 @@ impl DiskLensApp {
         let mut open_cmd_palette = false;
         let mut toggle_one_fs = false;
         let mut do_elevate = false;
+        let mut do_nav_back = false;
+        let mut do_nav_forward = false;
 
-        let perm_errors = self.session.progress.issues.iter().filter(|i| i.issue_type == crate::models::ScanIssueType::PermissionDenied).count();
+        let perm_errors = self
+            .session
+            .progress
+            .issues
+            .iter()
+            .filter(|i| i.issue_type == crate::models::ScanIssueType::PermissionDenied)
+            .count();
         let one_fs = !self.settings_state.settings.cross_filesystem_boundaries;
+        let can_back = self.can_go_back();
+        let can_forward = self.can_go_forward();
 
         let t = AppTheme::tokens(self.dark_mode);
 
@@ -742,6 +915,10 @@ impl DiskLensApp {
                         search_query: &mut self.global_search,
                         one_filesystem: one_fs,
                         permission_errors: perm_errors,
+                        can_go_back: can_back,
+                        can_go_forward: can_forward,
+                        on_go_back: &mut || do_nav_back = true,
+                        on_go_forward: &mut || do_nav_forward = true,
                         on_theme_change: &mut |dm| requested_theme = Some(dm),
                         on_refresh_storage: &mut || refresh_storage = true,
                         on_rescan: &mut |target| rescan_target = Some(target),
@@ -757,6 +934,13 @@ impl DiskLensApp {
                     },
                 );
             });
+
+        if do_nav_back {
+            self.go_back();
+        }
+        if do_nav_forward {
+            self.go_forward();
+        }
 
         // 2. Persistent Bottom Status Bar
         TopBottomPanel::bottom("bottom_status_panel")
@@ -797,9 +981,20 @@ impl DiskLensApp {
                         .inner_margin(Margin::symmetric(if is_compact { 4.0 } else { 8.0 }, 10.0)),
                 )
                 .show(ctx, |ui| {
-                    let hogs_count = self.session.analysis_cache.as_ref().map(|c| c.largest_files.len()).unwrap_or(0);
+                    let hogs_count = self
+                        .session
+                        .analysis_cache
+                        .as_ref()
+                        .map(|c| c.largest_files.len())
+                        .unwrap_or(0);
                     let is_analysis_ready = self.session.is_ready();
-                    let can_nav = move |tab: ActiveTab| if tab.requires_analysis_data() { is_analysis_ready } else { true };
+                    let can_nav = move |tab: ActiveTab| {
+                        if tab.requires_analysis_data() {
+                            is_analysis_ready
+                        } else {
+                            true
+                        }
+                    };
                     render_side_nav(
                         ui,
                         &mut self.selected_tab,
@@ -818,33 +1013,50 @@ impl DiskLensApp {
 
         if refresh_storage {
             self.storage_state.refresh();
-            self.modals.show_toast("Storage devices refreshed".to_string(), false);
+            self.modals
+                .show_toast("Storage devices refreshed".to_string(), false);
         }
 
         if toggle_one_fs {
-            self.settings_state.settings.cross_filesystem_boundaries = !self.settings_state.settings.cross_filesystem_boundaries;
+            self.settings_state.settings.cross_filesystem_boundaries =
+                !self.settings_state.settings.cross_filesystem_boundaries;
             let _ = self.settings_state.settings.save();
-            let state_str = if !self.settings_state.settings.cross_filesystem_boundaries { "Active (-xdev ON)" } else { "Disabled (-xdev OFF)" };
-            self.modals.show_toast(format!("One Filesystem Boundary: {}", state_str), false);
-            self.modals.log("INFO", &format!("Toggled mount boundary control: {}", state_str));
+            let state_str = if !self.settings_state.settings.cross_filesystem_boundaries {
+                "Active (-xdev ON)"
+            } else {
+                "Disabled (-xdev OFF)"
+            };
+            self.modals
+                .show_toast(format!("One Filesystem Boundary: {}", state_str), false);
+            self.modals.log(
+                "INFO",
+                &format!("Toggled mount boundary control: {}", state_str),
+            );
         }
 
         if do_elevate {
             let target_p = self.session.path_input.clone();
-            let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("/home/sayantan/disk-analyzer-gui/target/release/disk-lens"));
+            let exe = std::env::current_exe().unwrap_or_else(|_| {
+                PathBuf::from("/home/sayantan/disk-analyzer-gui/target/release/disk-lens")
+            });
             let spawn_res = std::process::Command::new("pkexec")
                 .arg(&exe)
                 .arg(&target_p)
                 .spawn();
             match spawn_res {
                 Ok(_) => {
-                    self.modals.show_toast("Launched elevated DiskLens via pkexec".to_string(), false);
+                    self.modals
+                        .show_toast("Launched elevated DiskLens via pkexec".to_string(), false);
                     self.modals.log("INFO", "Spawned pkexec elevation process");
                 }
                 Err(e) => {
                     let cmd_str = format!("pkexec {} \"{}\"", exe.display(), target_p);
-                    self.modals.show_toast(format!("Elevation error: {}. Run: {}", e, cmd_str), true);
-                    self.modals.log("ERROR", &format!("pkexec launch failed: {}. Manual command: {}", e, cmd_str));
+                    self.modals
+                        .show_toast(format!("Elevation error: {}. Run: {}", e, cmd_str), true);
+                    self.modals.log(
+                        "ERROR",
+                        &format!("pkexec launch failed: {}. Manual command: {}", e, cmd_str),
+                    );
                 }
             }
         }
@@ -928,7 +1140,12 @@ impl DiskLensApp {
                                 ui.vertical_centered(|ui| {
                                     ui.label(RichText::new("⚠").size(36.0).color(t.danger));
                                     ui.add_space(6.0);
-                                    ui.label(RichText::new("Unable to analyze location").size(16.0).strong().color(t.text));
+                                    ui.label(
+                                        RichText::new("Unable to analyze location")
+                                            .size(16.0)
+                                            .strong()
+                                            .color(t.text),
+                                    );
                                     ui.add_space(4.0);
                                     ui.label(RichText::new(&err).size(12.0).color(t.text_muted));
                                     ui.add_space(16.0);
@@ -966,7 +1183,11 @@ impl DiskLensApp {
                         );
                     }
                     ActiveTab::Overview => {
-                        if let (Some(root), Some(cache)) = (&self.session.scanned_root, &self.session.analysis_cache) {
+                        if let (Some(root), Some(cache)) =
+                            (&self.session.scanned_root, &self.session.analysis_cache)
+                        {
+                            self.overview_state.can_go_back = self.can_go_back();
+                            self.overview_state.can_go_forward = self.can_go_forward();
                             if let Some(action) = render_overview_view(
                                 ui,
                                 root,
@@ -982,6 +1203,7 @@ impl DiskLensApp {
                     }
                     ActiveTab::Treemap => {
                         if let Some(root) = &self.session.scanned_root {
+                            let mut treemap_nav_path = None;
                             render_treemap_view(
                                 ui,
                                 root,
@@ -989,8 +1211,12 @@ impl DiskLensApp {
                                 &mut self.selected_tab,
                                 &mut self.modals,
                                 self.dark_mode,
+                                &mut |p| treemap_nav_path = Some(p),
                                 &mut |path| action_analyze = Some(path),
                             );
+                            if let Some(p) = treemap_nav_path {
+                                self.navigate_to_path(ActiveTab::Treemap, p);
+                            }
                         } else {
                             self.selected_tab = ActiveTab::Storage;
                         }
@@ -1077,25 +1303,13 @@ impl DiskLensApp {
                         );
                     }
                     ActiveTab::SystemLogs => {
-                        render_logs_view(
-                            ui,
-                            &mut self.logs_state,
-                            &self.modals,
-                            self.dark_mode,
-                        );
+                        render_logs_view(ui, &mut self.logs_state, &self.modals, self.dark_mode);
                     }
                     ActiveTab::RustEngine => {
-                        render_engine_view(
-                            ui,
-                            &mut self.engine_state,
-                            self.dark_mode,
-                        );
+                        render_engine_view(ui, &mut self.engine_state, self.dark_mode);
                     }
                     ActiveTab::Documentation => {
-                        render_docs_view(
-                            ui,
-                            self.dark_mode,
-                        );
+                        render_docs_view(ui, self.dark_mode);
                     }
                 }
 
@@ -1107,7 +1321,13 @@ impl DiskLensApp {
         // 5. Global Command Palette (Ctrl+K)
         let mut palette_action = None;
         let is_analysis_ready = self.session.is_ready();
-        let can_nav_palette = move |tab: ActiveTab| if tab.requires_analysis_data() { is_analysis_ready } else { true };
+        let can_nav_palette = move |tab: ActiveTab| {
+            if tab.requires_analysis_data() {
+                is_analysis_ready
+            } else {
+                true
+            }
+        };
         render_command_palette(
             ctx,
             &mut self.command_palette_state,
@@ -1137,8 +1357,19 @@ impl DiskLensApp {
                     self.navigate_to(ActiveTab::SafeTrash);
                     self.safe_trash_state.is_dry_run = true;
                     self.safe_trash_state.cleanup_completed = true;
-                    self.safe_trash_state.reclaimed_bytes = self.safe_trash_state.categories.iter().map(|c| c.total_reclaimable_bytes()).sum();
-                    self.modals.show_toast(format!("Dry-run complete: {} verified", crate::models::format_size(self.safe_trash_state.reclaimed_bytes)), false);
+                    self.safe_trash_state.reclaimed_bytes = self
+                        .safe_trash_state
+                        .categories
+                        .iter()
+                        .map(|c| c.total_reclaimable_bytes())
+                        .sum();
+                    self.modals.show_toast(
+                        format!(
+                            "Dry-run complete: {} verified",
+                            crate::models::format_size(self.safe_trash_state.reclaimed_bytes)
+                        ),
+                        false,
+                    );
                 }
                 CommandAction::ToggleTheme => self.set_dark_mode(ctx, !self.dark_mode),
             }
@@ -1146,12 +1377,16 @@ impl DiskLensApp {
 
         // 6. Dialogs, Modals, Settings & Floating Toasts
         let mut deleted_path = None;
+        let mut renamed_info = None;
         let mut custom_scan_path = None;
 
         self.modals.show(
             ctx,
             self.dark_mode,
             &mut |p| deleted_path = Some(p.clone()),
+            &mut |from, to, new_name| {
+                renamed_info = Some((from.clone(), to.clone(), new_name.to_string()))
+            },
             &mut |cp| custom_scan_path = Some(cp),
         );
 
@@ -1164,6 +1399,10 @@ impl DiskLensApp {
 
         if let Some(path) = deleted_path {
             self.remove_node_from_tree(&path);
+        }
+
+        if let Some((from, to, new_name)) = renamed_info {
+            self.rename_node_in_tree(&from, &to, &new_name);
         }
 
         if let Some(cp) = custom_scan_path {

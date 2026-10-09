@@ -72,6 +72,7 @@ pub fn render_storage_view(
                 let num_summary_cols = if total_avail >= 1100.0 { 4 } else if total_avail >= 600.0 { 2 } else { 1 };
                 let spacing = 10.0_f32;
                 let summary_card_w = ((total_avail - (spacing * (num_summary_cols as f32 - 1.0))) / num_summary_cols as f32).floor();
+                let summary_card_h = 92.0_f32;
 
                 let summary_cards = [
                     (
@@ -80,7 +81,7 @@ pub fn render_storage_view(
                         format!("{} used ({:.0}%)", format_size(total_used), if total_capacity > 0 { (total_used as f64 / total_capacity as f64) * 100.0 } else { 0.0 }),
                         t.accent,
                         "🖴",
-                        None,
+                        Some(ActiveTab::MountPoints),
                     ),
                     (
                         "Safe Cleanable Space",
@@ -111,19 +112,19 @@ pub fn render_storage_view(
                 for chunk in summary_cards.chunks(num_summary_cols) {
                     if num_summary_cols == 1 {
                         for (title, value, sub, color, icon, target_tab) in chunk {
-                            ui.allocate_ui_with_layout(egui::vec2(summary_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.allocate_ui_with_layout(egui::vec2(summary_card_w, summary_card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                 ui.set_max_width(summary_card_w);
-                                render_summary_metric_card(ui, title, value, sub, *color, icon, *target_tab, summary_card_w, active_tab, &t);
+                                render_summary_metric_card(ui, title, value, sub, *color, icon, *target_tab, summary_card_w, summary_card_h, active_tab, &t);
                             });
                             ui.add_space(8.0);
                         }
                     } else {
-                        ui.horizontal(|ui| {
+                        ui.horizontal_top(|ui| {
                             ui.spacing_mut().item_spacing.x = spacing;
                             for (title, value, sub, color, icon, target_tab) in chunk {
-                                ui.allocate_ui_with_layout(egui::vec2(summary_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                ui.allocate_ui_with_layout(egui::vec2(summary_card_w, summary_card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                     ui.set_max_width(summary_card_w);
-                                    render_summary_metric_card(ui, title, value, sub, *color, icon, *target_tab, summary_card_w, active_tab, &t);
+                                    render_summary_metric_card(ui, title, value, sub, *color, icon, *target_tab, summary_card_w, summary_card_h, active_tab, &t);
                                 });
                             }
                         });
@@ -155,29 +156,32 @@ pub fn render_storage_view(
 
                 let num_cols = if total_avail > 900.0 { 6 } else if total_avail > 500.0 { 3 } else { 2 };
                 let tile_w = ((total_avail - (8.0 * (num_cols as f32 - 1.0))) / num_cols as f32).floor();
+                let tile_h = 58.0_f32;
 
                 for chunk in quick_locs.chunks(num_cols) {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         for (short_name, target_path, color, icon) in chunk {
-                            ui.allocate_ui_with_layout(egui::vec2(tile_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.allocate_ui_with_layout(egui::vec2(tile_w, tile_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                 ui.set_max_width(tile_w);
                                 let frame_resp = egui::Frame::none()
                                     .fill(t.bg_container)
-                                    .rounding(6.0_f32)
+                                    .rounding(8.0_f32)
                                     .stroke(egui::Stroke::new(1.0_f32, t.border))
-                                    .inner_margin(Margin::symmetric(8.0, 6.0))
+                                    .inner_margin(Margin::symmetric(8.0, 7.0))
                                     .show(ui, |ui| {
                                         ui.set_width(ui.available_width());
+                                        ui.set_height(tile_h - 14.0);
                                         ui.vertical_centered(|ui| {
                                             ui.label(RichText::new(*icon).size(18.0).color(*color));
+                                            ui.add_space(2.0);
                                             ui.add(egui::Label::new(RichText::new(*short_name).size(11.5).color(t.text)).truncate());
                                         });
                                     });
 
                                 let interact_resp = ui.interact(frame_resp.response.rect, ui.id().with(short_name), Sense::click());
                                 if interact_resp.hovered() {
-                                    ui.painter().rect_stroke(frame_resp.response.rect, 6.0_f32, egui::Stroke::new(1.0_f32, *color));
+                                    ui.painter().rect_stroke(frame_resp.response.rect, 8.0_f32, egui::Stroke::new(1.0_f32, *color));
                                 }
                                 if interact_resp.clicked() {
                                     *path_input = target_path.clone();
@@ -211,13 +215,14 @@ pub fn render_storage_view(
                 } else {
                     ((total_avail - 12.0) / 2.0).floor().max(120.0)
                 };
+                let drive_card_h = 108.0_f32;
 
                 for chunk in disk_list.chunks(if is_single_col { 1 } else { 2 }) {
                     if is_single_col {
                         for disk in chunk {
-                            ui.allocate_ui_with_layout(egui::vec2(drive_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.allocate_ui_with_layout(egui::vec2(drive_card_w, drive_card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                 ui.set_max_width(drive_card_w);
-                                render_storage_drive_card(ui, disk, drive_card_w, path_input, on_analyze, &t);
+                                render_storage_drive_card(ui, disk, drive_card_w, drive_card_h, path_input, on_analyze, &t);
                             });
                             ui.add_space(8.0);
                         }
@@ -225,9 +230,9 @@ pub fn render_storage_view(
                         ui.horizontal_top(|ui| {
                             ui.spacing_mut().item_spacing.x = 12.0;
                             for disk in chunk {
-                                ui.allocate_ui_with_layout(egui::vec2(drive_card_w, 0.0), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                ui.allocate_ui_with_layout(egui::vec2(drive_card_w, drive_card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                     ui.set_max_width(drive_card_w);
-                                    render_storage_drive_card(ui, disk, drive_card_w, path_input, on_analyze, &t);
+                                    render_storage_drive_card(ui, disk, drive_card_w, drive_card_h, path_input, on_analyze, &t);
                                 });
                             }
                         });
@@ -242,7 +247,7 @@ pub fn render_storage_view(
                     ui.set_max_width(total_avail);
                     egui::Frame::none()
                         .fill(t.bg_elevated)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, t.border))
                         .inner_margin(Margin::same(14.0))
                         .show(ui, |ui| {
@@ -326,19 +331,26 @@ fn render_summary_metric_card(
     icon: &str,
     target_tab: Option<ActiveTab>,
     _card_w: f32,
+    card_h: f32,
     active_tab: &mut ActiveTab,
     t: &crate::theme::ThemeTokens,
 ) {
     egui::Frame::none()
         .fill(t.bg_container)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
+            ui.set_height(card_h - 24.0);
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(title).size(10.0).monospace().color(t.text_muted));
+                    ui.label(
+                        RichText::new(title)
+                            .size(10.0)
+                            .monospace()
+                            .color(t.text_muted),
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(RichText::new(icon).size(13.0).color(color));
                     });
@@ -350,7 +362,8 @@ fn render_summary_metric_card(
                     ui.add(
                         egui::Label::new(RichText::new(sub).size(10.5).color(t.text_secondary))
                             .truncate(),
-                    ).on_hover_text(sub);
+                    )
+                    .on_hover_text(sub);
                     if let Some(tab) = target_tab {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.small_button("Inspect →").clicked() {
@@ -367,6 +380,7 @@ fn render_storage_drive_card(
     ui: &mut Ui,
     disk: &sysinfo::Disk,
     _drive_card_w: f32,
+    drive_card_h: f32,
     path_input: &mut String,
     on_analyze: &mut dyn FnMut(PathBuf),
     t: &crate::theme::ThemeTokens,
@@ -407,29 +421,50 @@ fn render_storage_drive_card(
 
     let frame_resp = egui::Frame::none()
         .fill(t.bg_container)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
+            ui.set_height(drive_card_h - 24.0);
 
             // Header row: Icon + Title/Sub + Scan Button
             ui.horizontal(|ui| {
-                let icon = if dev_name.contains("nvme") { "⚡" } else { "🖴" };
+                let icon = if dev_name.contains("nvme") {
+                    "⚡"
+                } else {
+                    "🖴"
+                };
                 ui.label(RichText::new(icon).size(20.0).color(t.accent));
 
                 ui.vertical(|ui| {
-                    ui.label(RichText::new(&drive_title).size(13.0).strong().color(t.text));
+                    ui.label(
+                        RichText::new(&drive_title)
+                            .size(13.0)
+                            .strong()
+                            .color(t.text),
+                    );
                     let sub_text = format!("{} • {} • mount: {}", dev_name, fs_type, mount_str);
-                    ui.add(egui::Label::new(RichText::new(sub_text).size(10.5).color(t.text_muted)).truncate());
+                    ui.add(
+                        egui::Label::new(RichText::new(sub_text).size(10.5).color(t.text_muted))
+                            .truncate(),
+                    );
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add_sized(
-                        [68.0, 26.0],
-                        egui::Button::new(RichText::new("🔍 Scan").size(11.5).strong().color(Color32::WHITE))
-                            .fill(Color32::from_rgb(65, 72, 104)),
-                    ).clicked() {
+                    if ui
+                        .add_sized(
+                            [68.0, 26.0],
+                            egui::Button::new(
+                                RichText::new("🔍 Scan")
+                                    .size(11.5)
+                                    .strong()
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(t.accent),
+                        )
+                        .clicked()
+                    {
                         *path_input = mount_point.display().to_string();
                         on_analyze(mount_point.clone());
                     }
@@ -455,7 +490,8 @@ fn render_storage_drive_card(
             let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, 8.0), Sense::hover());
             ui.painter().rect_filled(bar_rect, 4.0_f32, t.bg_input);
             let filled_w = (bar_rect.width() * usage_ratio).max(4.0);
-            let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
+            let filled_rect =
+                Rect::from_min_size(bar_rect.min, Vec2::new(filled_w, bar_rect.height()));
             ui.painter().rect_filled(filled_rect, 4.0_f32, bar_color);
 
             ui.add_space(4.0);
@@ -466,15 +502,27 @@ fn render_storage_drive_card(
                 ui.label(RichText::new(pct_str).size(10.5).color(bar_color));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let free_str = format!("{} Free ({:.0}%)", format_size(available_bytes), (1.0 - usage_ratio) * 100.0);
+                    let free_str = format!(
+                        "{} Free ({:.0}%)",
+                        format_size(available_bytes),
+                        (1.0 - usage_ratio) * 100.0
+                    );
                     ui.label(RichText::new(free_str).size(10.5).color(t.text_muted));
                 });
             });
         });
 
-    let interact_resp = ui.interact(frame_resp.response.rect, ui.id().with(&mount_str), Sense::click());
+    let interact_resp = ui.interact(
+        frame_resp.response.rect,
+        ui.id().with(&mount_str),
+        Sense::click(),
+    );
     if interact_resp.hovered() {
-        ui.painter().rect_stroke(frame_resp.response.rect, 6.0_f32, egui::Stroke::new(1.0_f32, t.accent));
+        ui.painter().rect_stroke(
+            frame_resp.response.rect,
+            8.0_f32,
+            egui::Stroke::new(1.0_f32, t.accent),
+        );
     }
     if interact_resp.clicked() {
         *path_input = mount_point.display().to_string();

@@ -46,7 +46,7 @@ pub fn render_largest_files_view(
     // 1. Safety Principle Banner
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::symmetric(10.0, 6.0))
         .show(ui, |ui| {
@@ -66,7 +66,7 @@ pub fn render_largest_files_view(
     // 2. Filter & Query Toolbar
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::symmetric(10.0, 6.0))
         .show(ui, |ui| {
@@ -74,7 +74,8 @@ pub fn render_largest_files_view(
                 // Search
                 ui.add_sized(
                     [180.0, 24.0],
-                    egui::TextEdit::singleline(&mut state.search_query).hint_text("Search name or path..."),
+                    egui::TextEdit::singleline(&mut state.search_query)
+                        .hint_text("Search name or path..."),
                 );
 
                 if !state.search_query.is_empty() && ui.small_button("✕").clicked() {
@@ -84,13 +85,20 @@ pub fn render_largest_files_view(
                 ui.separator();
 
                 // Category dropdown
-                let cat_name = state.selected_category.map(|c| c.display_name()).unwrap_or("All Categories");
+                let cat_name = state
+                    .selected_category
+                    .map(|c| c.display_name())
+                    .unwrap_or("All Categories");
                 egui::ComboBox::from_id_salt("space_hogs_cat")
                     .selected_text(cat_name)
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut state.selected_category, None, "All Categories");
                         for cat in FileCategory::ALL {
-                            ui.selectable_value(&mut state.selected_category, Some(cat), format!("{} {}", cat.icon(), cat.display_name()));
+                            ui.selectable_value(
+                                &mut state.selected_category,
+                                Some(cat),
+                                format!("{} {}", cat.icon(), cat.display_name()),
+                            );
                         }
                     });
 
@@ -120,7 +128,9 @@ pub fn render_largest_files_view(
         .iter()
         .filter(|f| {
             if let Some(cat) = state.selected_category {
-                if f.category != cat { return false; }
+                if f.category != cat {
+                    return false;
+                }
             }
             if state.cache_only && !f.is_cache_or_temp {
                 return false;
@@ -132,7 +142,9 @@ pub fn render_largest_files_view(
                 let q = state.search_query.to_lowercase();
                 let m_name = f.name.to_lowercase().contains(&q);
                 let m_path = f.path.to_string_lossy().to_lowercase().contains(&q);
-                if !m_name && !m_path { return false; }
+                if !m_name && !m_path {
+                    return false;
+                }
             }
             true
         })
@@ -155,7 +167,11 @@ pub fn render_largest_files_view(
             .color(t.text_secondary),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new("Prioritized by allocated disk blocks").size(10.5).color(t.text_muted));
+            ui.label(
+                RichText::new("Prioritized by allocated disk blocks")
+                    .size(10.5)
+                    .color(t.text_muted),
+            );
         });
     });
 
@@ -177,19 +193,23 @@ pub fn render_largest_files_view(
                 .striped(true)
                 .resizable(false)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::exact(32.0))             // Rank
-                .column(Column::remainder().clip(true))  // Item & Location
-                .column(Column::exact(85.0))             // Apparent Size
-                .column(Column::exact(85.0))             // Allocated Disk
-                .column(Column::exact(85.0))             // Category
-                .column(Column::exact(90.0))             // Assessment
-                .column(Column::exact(125.0))            // Actions
+                .column(Column::exact(32.0)) // Rank
+                .column(Column::remainder().clip(true)) // Item & Location
+                .column(Column::exact(85.0)) // Apparent Size
+                .column(Column::exact(85.0)) // Allocated Disk
+                .column(Column::exact(85.0)) // Category
+                .column(Column::exact(90.0)) // Assessment
+                .column(Column::exact(125.0)) // Actions
                 .header(24.0, |mut header| {
                     header.col(|ui| {
                         ui.label(RichText::new("#").strong().color(t.text_muted));
                     });
                     header.col(|ui| {
-                        ui.label(RichText::new("Item & Location").strong().color(t.text_muted));
+                        ui.label(
+                            RichText::new("Item & Location")
+                                .strong()
+                                .color(t.text_muted),
+                        );
                     });
                     header.col(|ui| {
                         ui.label(RichText::new("Apparent Size").strong().color(t.text_muted));
@@ -216,51 +236,118 @@ pub fn render_largest_files_view(
                             // Col 1: Rank (#01, #02, ...)
                             row.col(|ui| {
                                 let rank_col = if idx < 3 { t.accent } else { t.text_muted };
-                                ui.label(RichText::new(format!("{:02}", idx + 1)).size(11.0).monospace().color(rank_col));
+                                ui.label(
+                                    RichText::new(format!("{:02}", idx + 1))
+                                        .size(11.0)
+                                        .monospace()
+                                        .color(rank_col),
+                                );
                             });
 
                             // Col 2: Name & truncated parent folder
                             row.col(|ui| {
-                                let parent_str = file.path.parent().map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string()).unwrap_or_default();
+                                let parent_str = file
+                                    .path
+                                    .parent()
+                                    .map(|p| {
+                                        p.file_name()
+                                            .unwrap_or_default()
+                                            .to_string_lossy()
+                                            .to_string()
+                                    })
+                                    .unwrap_or_default();
                                 let display_name = truncate_middle(&file.name, 34);
                                 let name_text = if !parent_str.is_empty() {
-                                    format!("{} {}  ({})", file.category.icon(), display_name, parent_str)
+                                    format!(
+                                        "{} {}  ({})",
+                                        file.category.icon(),
+                                        display_name,
+                                        parent_str
+                                    )
                                 } else {
                                     format!("{} {}", file.category.icon(), display_name)
                                 };
 
                                 let item_resp = ui.add(
-                                    egui::Label::new(RichText::new(name_text).size(11.5).color(t.text))
-                                        .truncate(),
+                                    egui::Label::new(
+                                        RichText::new(name_text).size(11.5).color(t.text),
+                                    )
+                                    .truncate(),
                                 );
                                 if item_resp.double_clicked() {
                                     let _ = FileActions::open_file(&file.path);
                                 }
                                 item_resp.on_hover_ui(|ui| {
                                     ui.label(RichText::new(&file.name).strong().color(t.text));
-                                    ui.label(RichText::new(&full_p).size(10.5).monospace().color(t.text_muted));
+                                    ui.label(
+                                        RichText::new(&full_p)
+                                            .size(10.5)
+                                            .monospace()
+                                            .color(t.text_muted),
+                                    );
                                     ui.separator();
                                     ui.horizontal(|ui| {
-                                        ui.label(RichText::new("Apparent Size:").size(11.0).color(t.text_muted));
-                                        ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().strong().color(t.text));
-                                        ui.label(RichText::new("Allocated:").size(11.0).color(t.text_muted));
-                                        ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().strong().color(t.cyan));
+                                        ui.label(
+                                            RichText::new("Apparent Size:")
+                                                .size(11.0)
+                                                .color(t.text_muted),
+                                        );
+                                        ui.label(
+                                            RichText::new(file.formatted_size())
+                                                .size(11.0)
+                                                .monospace()
+                                                .strong()
+                                                .color(t.text),
+                                        );
+                                        ui.label(
+                                            RichText::new("Allocated:")
+                                                .size(11.0)
+                                                .color(t.text_muted),
+                                        );
+                                        ui.label(
+                                            RichText::new(file.formatted_allocated_size())
+                                                .size(11.0)
+                                                .monospace()
+                                                .strong()
+                                                .color(t.cyan),
+                                        );
                                     });
                                     if file.nlink > 1 {
-                                        ui.label(RichText::new(format!("🔗 Inode hardlinks count: {}", file.nlink)).size(10.5).color(t.purple));
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "🔗 Inode hardlinks count: {}",
+                                                file.nlink
+                                            ))
+                                            .size(10.5)
+                                            .color(t.purple),
+                                        );
                                     }
-                                    ui.label(RichText::new(format!("Assessment: {}", &file.risk_note)).size(11.0).color(t.accent));
+                                    ui.label(
+                                        RichText::new(format!("Assessment: {}", &file.risk_note))
+                                            .size(11.0)
+                                            .color(t.accent),
+                                    );
                                 });
                             });
 
                             // Col 3: Apparent Size (Monospace)
                             row.col(|ui| {
-                                ui.label(RichText::new(file.formatted_size()).size(11.0).monospace().color(t.text));
+                                ui.label(
+                                    RichText::new(file.formatted_size())
+                                        .size(11.0)
+                                        .monospace()
+                                        .color(t.text),
+                                );
                             });
 
                             // Col 4: Allocated Disk (Monospace)
                             row.col(|ui| {
-                                ui.label(RichText::new(file.formatted_allocated_size()).size(11.0).monospace().color(t.cyan));
+                                ui.label(
+                                    RichText::new(file.formatted_allocated_size())
+                                        .size(11.0)
+                                        .monospace()
+                                        .color(t.cyan),
+                                );
                             });
 
                             // Col 5: Category Pill
@@ -270,7 +357,11 @@ pub fn render_largest_files_view(
                                     .rounding(3.0_f32)
                                     .inner_margin(Margin::symmetric(6.0, 2.0));
                                 cat_pill.show(ui, |ui| {
-                                    ui.label(RichText::new(file.category.display_name()).size(10.0).color(file.category.color()));
+                                    ui.label(
+                                        RichText::new(file.category.display_name())
+                                            .size(10.0)
+                                            .color(file.category.color()),
+                                    );
                                 });
                             });
 
@@ -301,21 +392,41 @@ pub fn render_largest_files_view(
                                     ui.spacing_mut().item_spacing.x = 2.0;
                                     ui.spacing_mut().button_padding = Vec2::new(4.0, 2.0);
 
-                                    if ui.small_button("📂").on_hover_text("Reveal in file manager").clicked() {
+                                    if ui
+                                        .small_button("📂")
+                                        .on_hover_text("Reveal in file manager")
+                                        .clicked()
+                                    {
                                         let _ = FileActions::open_in_file_manager(&file.path);
                                     }
 
-                                    if ui.small_button("📋").on_hover_text("Copy path").clicked() {
+                                    if ui.small_button("📋").on_hover_text("Copy path").clicked()
+                                    {
                                         ui.output_mut(|o| o.copied_text = full_p.clone());
                                         modals.show_toast("Copied path".to_string(), false);
                                     }
 
-                                    if ui.small_button("🗑").on_hover_text("Move to trash").clicked() {
-                                        modals.pending_confirm = Some(ConfirmAction::MoveToTrash(file.path.clone(), file.size));
+                                    if ui
+                                        .small_button("🗑")
+                                        .on_hover_text("Move to trash")
+                                        .clicked()
+                                    {
+                                        modals.pending_confirm = Some(ConfirmAction::MoveToTrash(
+                                            file.path.clone(),
+                                            file.size,
+                                        ));
                                     }
 
-                                    if ui.small_button("🔥").on_hover_text("Shred / Permanently delete").clicked() {
-                                        modals.pending_confirm = Some(ConfirmAction::PermanentDelete(file.path.clone(), file.size));
+                                    if ui
+                                        .small_button("🔥")
+                                        .on_hover_text("Shred / Permanently delete")
+                                        .clicked()
+                                    {
+                                        modals.pending_confirm =
+                                            Some(ConfirmAction::PermanentDelete(
+                                                file.path.clone(),
+                                                file.size,
+                                            ));
                                     }
                                 });
                             });

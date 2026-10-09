@@ -1,5 +1,5 @@
-use eframe::egui::{self, Color32, Margin, RichText, Ui};
 use crate::theme::{AppTheme, ThemeTokens};
+use eframe::egui::{self, Color32, Margin, RichText, Ui};
 use egui_extras::{Column, TableBuilder};
 
 /// Reusable responsive card container adhering to egui/eframe best practices.
@@ -85,18 +85,30 @@ pub fn responsive_metric_tile(
             ui.set_width(ui.available_width());
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(title).size(10.0).monospace().color(t.text_muted));
+                    ui.label(
+                        RichText::new(title)
+                            .size(10.0)
+                            .monospace()
+                            .color(t.text_muted),
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(RichText::new(icon).size(13.0).color(color));
                     });
                 });
                 ui.add_space(2.0);
-                ui.label(RichText::new(value).size(17.0).strong().monospace().color(color));
+                ui.label(
+                    RichText::new(value)
+                        .size(17.0)
+                        .strong()
+                        .monospace()
+                        .color(color),
+                );
                 ui.add_space(2.0);
                 ui.add(
                     egui::Label::new(RichText::new(subtitle).size(10.5).color(t.text_secondary))
                         .truncate(),
-                ).on_hover_text(subtitle);
+                )
+                .on_hover_text(subtitle);
             });
         });
 }

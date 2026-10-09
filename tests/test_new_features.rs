@@ -25,13 +25,36 @@ fn test_duplicate_detector_sha256_accuracy() {
     File::create(&file_a).unwrap().write_all(&payload).unwrap();
     File::create(&file_b).unwrap().write_all(&payload).unwrap();
     File::create(&file_c).unwrap().write_all(&payload).unwrap();
-    File::create(&file_unique).unwrap().write_all(&unique_payload).unwrap();
+    File::create(&file_unique)
+        .unwrap()
+        .write_all(&unique_payload)
+        .unwrap();
 
     let mut root_node = FileNode::new_dir("temp".to_string(), temp_dir.clone(), None);
-    root_node.children.push(FileNode::new_file("original.dat".to_string(), file_a.clone(), payload.len() as u64, None));
-    root_node.children.push(FileNode::new_file("duplicate_1.dat".to_string(), file_b.clone(), payload.len() as u64, None));
-    root_node.children.push(FileNode::new_file("duplicate_2.dat".to_string(), file_c.clone(), payload.len() as u64, None));
-    root_node.children.push(FileNode::new_file("unique.dat".to_string(), file_unique.clone(), unique_payload.len() as u64, None));
+    root_node.children.push(FileNode::new_file(
+        "original.dat".to_string(),
+        file_a.clone(),
+        payload.len() as u64,
+        None,
+    ));
+    root_node.children.push(FileNode::new_file(
+        "duplicate_1.dat".to_string(),
+        file_b.clone(),
+        payload.len() as u64,
+        None,
+    ));
+    root_node.children.push(FileNode::new_file(
+        "duplicate_2.dat".to_string(),
+        file_c.clone(),
+        payload.len() as u64,
+        None,
+    ));
+    root_node.children.push(FileNode::new_file(
+        "unique.dat".to_string(),
+        file_unique.clone(),
+        unique_payload.len() as u64,
+        None,
+    ));
 
     let dup_groups = DuplicateDetector::find_duplicates(&root_node, 1024, None);
 
@@ -52,7 +75,8 @@ fn test_duplicate_detector_sha256_accuracy() {
 
 #[test]
 fn test_storage_history_snapshots_and_deltas() {
-    let temp_history_dir = std::env::temp_dir().join(format!("disklens_hist_test_{}", std::process::id()));
+    let temp_history_dir =
+        std::env::temp_dir().join(format!("disklens_hist_test_{}", std::process::id()));
     fs::create_dir_all(&temp_history_dir).unwrap();
     let history_file = temp_history_dir.join("history.json");
 
@@ -80,13 +104,20 @@ fn test_storage_history_snapshots_and_deltas() {
     ];
 
     let json = serde_json::to_string_pretty(&snapshots).unwrap();
-    File::create(&history_file).unwrap().write_all(json.as_bytes()).unwrap();
+    File::create(&history_file)
+        .unwrap()
+        .write_all(json.as_bytes())
+        .unwrap();
 
     let loaded: Vec<ScanSnapshotRecord> = serde_json::from_str(&json).unwrap();
     assert_eq!(loaded.len(), 2);
 
     let diff = loaded[0].total_size_bytes as i64 - loaded[1].total_size_bytes as i64;
-    assert_eq!(diff, 10 * 1024 * 1024 * 1024, "Growth delta should be exactly +10 GB");
+    assert_eq!(
+        diff,
+        10 * 1024 * 1024 * 1024,
+        "Growth delta should be exactly +10 GB"
+    );
 
     let _ = fs::remove_dir_all(&temp_history_dir);
 }
@@ -134,7 +165,11 @@ fn test_four_pillar_tabs_enum() {
         ActiveTab::Documentation,
     ];
 
-    assert_eq!(tabs.len(), 14, "Must support all 14 navigation views across the 4 pillars");
+    assert_eq!(
+        tabs.len(),
+        14,
+        "Must support all 14 navigation views across the 4 pillars"
+    );
 }
 
 #[test]
@@ -152,7 +187,10 @@ fn test_safe_trash_discovery_and_dry_run() {
 #[test]
 fn test_smart_telemetry_discovery() {
     let devices = DiagnosticsManager::inspect_storage_devices();
-    assert!(!devices.is_empty(), "Must discover at least root or system storage devices");
+    assert!(
+        !devices.is_empty(),
+        "Must discover at least root or system storage devices"
+    );
     for dev in &devices {
         assert!(!dev.device_path.is_empty());
         assert!(dev.health_percent <= 100);

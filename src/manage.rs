@@ -1,6 +1,8 @@
+use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
+use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
 pub struct CleanupTargetItem {
@@ -107,7 +109,8 @@ impl StorageManager {
             categories.push(CleanupTargetCategory {
                 id: "dev-cache".to_string(),
                 title: "Development Package & Toolchain Caches".to_string(),
-                description: "Downloaded crate archives, npm packages, and pip build wheels".to_string(),
+                description: "Downloaded crate archives, npm packages, and pip build wheels"
+                    .to_string(),
                 requires_sudo: false,
                 is_selected: true,
                 items: dev_items,
@@ -151,7 +154,8 @@ impl StorageManager {
             let size = Self::calculate_dir_size(&apt_archives);
             if size > 0 {
                 sys_items.push(CleanupTargetItem {
-                    name: "Debian / Ubuntu APT Downloaded .deb Archives (/var/cache/apt/archives)".to_string(),
+                    name: "Debian / Ubuntu APT Downloaded .deb Archives (/var/cache/apt/archives)"
+                        .to_string(),
                     path: apt_archives,
                     size_bytes: size,
                     age_days: 45,
@@ -164,7 +168,9 @@ impl StorageManager {
             categories.push(CleanupTargetCategory {
                 id: "system-package-cache".to_string(),
                 title: "System Package Manager Caches".to_string(),
-                description: "Archived package tarballs in /var/cache. Requires root privileges to purge.".to_string(),
+                description:
+                    "Archived package tarballs in /var/cache. Requires root privileges to purge."
+                        .to_string(),
                 requires_sudo: true,
                 is_selected: false,
                 items: sys_items,
@@ -174,37 +180,41 @@ impl StorageManager {
         categories
     }
 
-    /// Recursively computes total size of a path in bytes without allocating large trees.
+    /// Recursively computes total size of a path in bytes using walkdir.
     pub fn calculate_dir_size(path: &Path) -> u64 {
         if path.is_file() {
             return std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
         }
 
-        let mut total = 0;
-        if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries.flatten() {
-                let p = entry.path();
-                if p.is_file() {
-                    total += entry.metadata().map(|m| m.len()).unwrap_or(0);
-                } else if p.is_dir() {
-                    total += Self::calculate_dir_size(&p);
-                }
-            }
-        }
-        total
+        WalkDir::new(path)
+            .follow_links(false)
+            .same_file_system(true)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .map(|e| e.metadata().map(|m| m.len()).unwrap_or(0))
+            .sum()
     }
 
-    /// Scans top-level entries inside a directory to create granular targets.
+    /// Scans top-level entries inside a directory in parallel using Rayon to create granular targets.
     fn scan_directory_top_level_items(dir: &Path) -> Vec<CleanupTargetItem> {
-        let mut items = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
+        let entries: Vec<_> = match std::fs::read_dir(dir) {
+            Ok(iter) => iter.flatten().collect(),
+            Err(_) => return Vec::new(),
+        };
+
+        let mut items: Vec<CleanupTargetItem> = entries
+            .into_par_iter()
+            .filter_map(|entry| {
                 let p = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
-                let size = if p.is_file() {
+                let file_type = entry.file_type().ok()?;
+                let size = if file_type.is_file() {
                     entry.metadata().map(|m| m.len()).unwrap_or(0)
-                } else {
+                } else if file_type.is_dir() {
                     Self::calculate_dir_size(&p)
+                } else {
+                    0
                 };
 
                 if size > 1024 * 100 {
@@ -223,16 +233,19 @@ impl StorageManager {
                         0
                     };
 
-                    items.push(CleanupTargetItem {
+                    Some(CleanupTargetItem {
                         name,
                         path: p,
                         size_bytes: size,
                         age_days,
                         is_removable: true,
-                    });
+                    })
+                } else {
+                    None
                 }
-            }
-        }
+            })
+            .collect();
+
         items.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
         items.truncate(30); // Top 30 items per category
         items
@@ -240,24 +253,28 @@ impl StorageManager {
 
     /// Executes SSD TRIM on the specified mount point safely using the Linux `fstrim` utility.
     pub fn execute_fstrim(mount_point: &Path) -> Result<String, String> {
-        let output = Command::new("fstrim")
-            .arg("-v")
-            .arg(mount_point)
-            .output();
+        let output = Command::new("fstrim").arg("-v").arg(mount_point).output();
 
         match output {
             Ok(out) => {
                 if out.status.success() {
                     let msg = String::from_utf8_lossy(&out.stdout).trim().to_string();
                     if msg.is_empty() {
-                        Ok(format!("fstrim completed successfully on {}", mount_point.display()))
+                        Ok(format!(
+                            "fstrim completed successfully on {}",
+                            mount_point.display()
+                        ))
                     } else {
                         Ok(msg)
                     }
                 } else {
                     let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-                    if err.contains("Permission denied") || err.contains("Operation not permitted") {
-                        Err(format!("fstrim on {} requires root/sudo privileges (run with sudo or polkit)", mount_point.display()))
+                    if err.contains("Permission denied") || err.contains("Operation not permitted")
+                    {
+                        Err(format!(
+                            "fstrim on {} requires root/sudo privileges (run with sudo or polkit)",
+                            mount_point.display()
+                        ))
                     } else if err.contains("FITRIM ioctl failed: Operation not supported") {
                         Err(format!("SSD TRIM is not supported by the underlying storage hardware or virtual device for {}", mount_point.display()))
                     } else {
@@ -270,7 +287,9 @@ impl StorageManager {
     }
 
     /// Reads Btrfs subvolume information if the target mount point is a Btrfs filesystem.
-    pub fn query_btrfs_subvolumes(mount_point: &Path) -> Result<Vec<(u64, String, String, bool)>, String> {
+    pub fn query_btrfs_subvolumes(
+        mount_point: &Path,
+    ) -> Result<Vec<(u64, String, String, bool)>, String> {
         let output = Command::new("btrfs")
             .arg("subvolume")
             .arg("list")
@@ -289,7 +308,9 @@ impl StorageManager {
                         if parts.len() >= 9 && parts[0] == "ID" {
                             let id: u64 = parts[1].parse().unwrap_or(0);
                             let path = parts[8].to_string();
-                            let is_snapshot = path.contains(".snapshots") || path.contains("snapshot") || path.contains("@snap");
+                            let is_snapshot = path.contains(".snapshots")
+                                || path.contains("snapshot")
+                                || path.contains("@snap");
                             let name = path.split('/').last().unwrap_or(&path).to_string();
                             subvolumes.push((id, name, path, is_snapshot));
                         }

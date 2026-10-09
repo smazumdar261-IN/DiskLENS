@@ -169,7 +169,12 @@ impl Scanner {
         let permission_error = None; // Root path readable if we got here
 
         if metadata.is_dir() {
-            let mut root_node = FileNode::new_dir_extended(root_name, root_path.clone(), modified, permission_error);
+            let mut root_node = FileNode::new_dir_extended(
+                root_name,
+                root_path.clone(),
+                modified,
+                permission_error,
+            );
             let success = self.scan_directory(&root_path, &mut root_node);
 
             if self.cancel_flag.load(Ordering::Relaxed) {
@@ -192,7 +197,17 @@ impl Scanner {
             }
         } else {
             let size = metadata.len();
-            let root_node = FileNode::new_file_extended(root_name, root_path, size, allocated_size, modified, inode, device, nlink, permission_error);
+            let root_node = FileNode::new_file_extended(
+                root_name,
+                root_path,
+                size,
+                allocated_size,
+                modified,
+                inode,
+                device,
+                nlink,
+                permission_error,
+            );
             self.progress.scanned_files = 1;
             self.progress.scanned_bytes = size;
             self.progress.scanned_dirs = 0;
@@ -207,7 +222,10 @@ impl Scanner {
 
     /// Extracts extended metadata fields using std::os::unix::fs::MetadataExt.
     /// Returns (allocated_size, inode, device, nlink).
-    fn extract_metadata_fields(&self, metadata: &fs::Metadata) -> (u64, Option<u64>, Option<u64>, u32) {
+    fn extract_metadata_fields(
+        &self,
+        metadata: &fs::Metadata,
+    ) -> (u64, Option<u64>, Option<u64>, u32) {
         // st_blocks is in 512-byte units. allocated_size = st_blocks * 512.
         // For sparse files, allocated_size < size. For compressed FS (Btrfs/ZFS), allocated_size may differ.
         let allocated_size = metadata.blocks() * 512;
@@ -258,7 +276,11 @@ impl Scanner {
                     std::io::ErrorKind::TimedOut => ScanIssueType::IoTimeout,
                     _ => ScanIssueType::InaccessiblePath,
                 };
-                let severity = if issue_type == ScanIssueType::PermissionDenied { "error" } else { "warning" };
+                let severity = if issue_type == ScanIssueType::PermissionDenied {
+                    "error"
+                } else {
+                    "warning"
+                };
                 self.add_issue(dir_path.to_path_buf(), issue_type, severity);
                 // Mark this directory as having a permission error
                 dir_node.permission_error = Some(e.to_string());
@@ -315,7 +337,8 @@ impl Scanner {
             };
 
             // Extract extended metadata fields
-            let (allocated_size, inode, device, nlink) = self.extract_metadata_fields(&symlink_meta);
+            let (allocated_size, inode, device, nlink) =
+                self.extract_metadata_fields(&symlink_meta);
             let modified = symlink_meta.modified().ok();
 
             // Cross-filesystem boundary check (one-filesystem / -xdev)
@@ -336,7 +359,9 @@ impl Scanner {
                 match self.settings.symlink_policy {
                     SymlinkPolicy::DontFollow => {
                         let name = entry.file_name().to_string_lossy().to_string();
-                        let file_node = FileNode::new_file_extended(name, path, 0, 0, modified, inode, device, nlink, None);
+                        let file_node = FileNode::new_file_extended(
+                            name, path, 0, 0, modified, inode, device, nlink, None,
+                        );
                         files.push(file_node);
                         self.progress.scanned_files += 1;
                         continue;
@@ -345,7 +370,9 @@ impl Scanner {
                         if !path.exists() {
                             self.add_issue(path.clone(), ScanIssueType::BrokenSymlink, "warning");
                             let name = entry.file_name().to_string_lossy().to_string();
-                            let file_node = FileNode::new_file_extended(name, path, 0, 0, modified, inode, device, nlink, None);
+                            let file_node = FileNode::new_file_extended(
+                                name, path, 0, 0, modified, inode, device, nlink, None,
+                            );
                             files.push(file_node);
                             self.progress.scanned_files += 1;
                             continue;
@@ -379,7 +406,17 @@ impl Scanner {
                     allocated_size
                 };
 
-                let file_node = FileNode::new_file_extended(name, path, size, effective_allocated, modified, inode, device, nlink, None);
+                let file_node = FileNode::new_file_extended(
+                    name,
+                    path,
+                    size,
+                    effective_allocated,
+                    modified,
+                    inode,
+                    device,
+                    nlink,
+                    None,
+                );
                 self.progress.scanned_files += 1;
                 self.progress.scanned_bytes += effective_allocated;
                 files.push(file_node);
@@ -421,7 +458,12 @@ impl Scanner {
     fn add_issue(&mut self, path: PathBuf, issue_type: ScanIssueType, severity: &'static str) {
         if self.progress.issues.len() < 100 {
             let elapsed = self.start_time.elapsed().as_secs();
-            let time_str = format!("{:02}:{:02}:{:02}", elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60);
+            let time_str = format!(
+                "{:02}:{:02}:{:02}",
+                elapsed / 3600,
+                (elapsed % 3600) / 60,
+                elapsed % 60
+            );
             self.progress.issues.push(ScanIssue {
                 id: format!("iss-{}", self.progress.issues.len() + 1),
                 path,

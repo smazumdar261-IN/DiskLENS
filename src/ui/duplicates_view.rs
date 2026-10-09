@@ -3,8 +3,8 @@ use crate::duplicates::{DuplicateDetector, DuplicateGroup};
 use crate::models::{format_size, FileNode};
 use crate::theme::{truncate_middle, AppTheme};
 use crate::ui::modals::{ConfirmAction, ModalManager};
-use eframe::egui::{self, Color32, Margin, RichText, Ui};
 use crossbeam_channel::Receiver;
+use eframe::egui::{self, Color32, Margin, RichText, Ui};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -65,7 +65,8 @@ impl DuplicatesViewState {
         self.is_analyzing = true;
 
         std::thread::spawn(move || {
-            let groups = DuplicateDetector::compute_duplicates_from_candidates(candidates, Some(counter));
+            let groups =
+                DuplicateDetector::compute_duplicates_from_candidates(candidates, Some(counter));
             let _ = tx.send(groups);
         });
     }
@@ -313,21 +314,31 @@ pub fn render_duplicates_view(
 
                 let is_narrow_bento = content_w < 720.0;
                 let spacing = 8.0_f32;
+                let card_h = 88.0_f32;
                 if is_narrow_bento {
                     ui.vertical(|ui| {
-                        render_summary_card(ui, "TOTAL DUPLICATES", &format_size(total_dup_bytes), "Across all duplicate clusters", t.text, &t, content_w);
+                        render_summary_card(ui, "TOTAL DUPLICATES", &format_size(total_dup_bytes), "Across all duplicate clusters", t.text, &t, content_w, card_h);
                         ui.add_space(spacing);
-                        render_summary_card(ui, "GROUPS IDENTIFIED", &format!("{}", group_count), "Identical SHA-256 file groups", t.accent, &t, content_w);
+                        render_summary_card(ui, "GROUPS IDENTIFIED", &format!("{}", group_count), "Identical SHA-256 file groups", t.accent, &t, content_w, card_h);
                         ui.add_space(spacing);
-                        render_summary_card(ui, "POTENTIAL SAVINGS", &format_size(potential_savings_bytes), "Reclaimable redundant storage", t.success, &t, content_w);
+                        render_summary_card(ui, "POTENTIAL SAVINGS", &format_size(potential_savings_bytes), "Reclaimable redundant storage", t.success, &t, content_w, card_h);
                     });
                 } else {
                     let card_w = ((content_w - (spacing * 2.0)) / 3.0).floor();
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = spacing;
-                        render_summary_card(ui, "TOTAL DUPLICATES", &format_size(total_dup_bytes), "Across all duplicate clusters", t.text, &t, card_w);
-                        render_summary_card(ui, "GROUPS IDENTIFIED", &format!("{}", group_count), "Identical SHA-256 file groups", t.accent, &t, card_w);
-                        render_summary_card(ui, "POTENTIAL SAVINGS", &format_size(potential_savings_bytes), "Reclaimable redundant storage", t.success, &t, card_w);
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_summary_card(ui, "TOTAL DUPLICATES", &format_size(total_dup_bytes), "Across all duplicate clusters", t.text, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_summary_card(ui, "GROUPS IDENTIFIED", &format!("{}", group_count), "Identical SHA-256 file groups", t.accent, &t, card_w, card_h);
+                        });
+                        ui.allocate_ui_with_layout(egui::vec2(card_w, card_h), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_max_width(card_w);
+                            render_summary_card(ui, "POTENTIAL SAVINGS", &format_size(potential_savings_bytes), "Reclaimable redundant storage", t.success, &t, card_w, card_h);
+                        });
                     });
                 }
 
@@ -336,7 +347,7 @@ pub fn render_duplicates_view(
                 // 3. Safety Notice Banner (Matches DuplicatesView.tsx)
                 egui::Frame::none()
                     .fill(t.bg_elevated)
-                    .rounding(4.0_f32)
+                    .rounding(8.0_f32)
                     .stroke(egui::Stroke::new(1.0_f32, t.border))
                     .inner_margin(Margin::same(10.0))
                     .show(ui, |ui| {
@@ -422,7 +433,7 @@ pub fn render_duplicates_view(
                 if filtered_groups.is_empty() {
                     egui::Frame::none()
                         .fill(t.bg_elevated)
-                        .rounding(6.0_f32)
+                        .rounding(8.0_f32)
                         .stroke(egui::Stroke::new(1.0_f32, t.border))
                         .inner_margin(Margin::same(24.0))
                         .show(ui, |ui| {
@@ -442,7 +453,7 @@ pub fn render_duplicates_view(
 
                         egui::Frame::none()
                             .fill(t.bg_elevated)
-                            .rounding(6.0_f32)
+                            .rounding(8.0_f32)
                             .stroke(egui::Stroke::new(1.0_f32, t.border))
                             .inner_margin(Margin::same(10.0))
                             .show(ui, |ui| {
@@ -569,18 +580,23 @@ fn render_summary_card(
     accent: Color32,
     t: &crate::theme::ThemeTokens,
     width: f32,
+    card_h: f32,
 ) {
     egui::Frame::none()
         .fill(t.bg_elevated)
-        .rounding(6.0_f32)
+        .rounding(8.0_f32)
         .stroke(egui::Stroke::new(1.0_f32, t.border))
         .inner_margin(Margin::same(12.0))
         .show(ui, |ui| {
             ui.set_width(width - 24.0);
+            ui.set_height(card_h - 24.0);
             ui.label(RichText::new(title).size(10.5).strong().color(t.text_muted));
             ui.add_space(2.0);
             ui.label(RichText::new(value).size(22.0).strong().color(accent));
             ui.add_space(2.0);
-            ui.label(RichText::new(subtitle).size(10.5).color(t.text_secondary));
+            ui.add(
+                egui::Label::new(RichText::new(subtitle).size(10.5).color(t.text_secondary))
+                    .truncate(),
+            );
         });
 }
