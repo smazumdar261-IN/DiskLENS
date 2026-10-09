@@ -43,10 +43,10 @@ impl ProjectMetadata {
             developer_bio: "Passionate about open source, Linux and building useful desktop tools. Feel free to connect or explore more on GitHub.",
 
             // Configured repository and profile for GitHub publication
-            repository_url: Some("https://github.com/smazumdar261-IN/DiskLens"),
-            documentation_url: Some("https://github.com/smazumdar261-IN/DiskLens#readme"),
-            issues_url: Some("https://github.com/smazumdar261-IN/DiskLens/issues"),
-            license_url: Some("https://github.com/smazumdar261-IN/DiskLens/blob/main/LICENSE"),
+            repository_url: Some("https://github.com/smazumdar261-IN/DiskLENS"),
+            documentation_url: Some("https://github.com/smazumdar261-IN/DiskLENS#readme"),
+            issues_url: Some("https://github.com/smazumdar261-IN/DiskLENS/issues"),
+            license_url: Some("https://github.com/smazumdar261-IN/DiskLENS/blob/main/LICENSE"),
             github_url: Some("https://github.com/smazumdar261-IN"),
             linkedin_url: None,
             email_url: None,

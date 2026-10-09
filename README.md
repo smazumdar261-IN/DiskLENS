@@ -107,8 +107,8 @@ flowchart TD
 ### Build from Source
 ```bash
 # Clone the repository
-git clone https://github.com/smazumdar261-IN/DiskLens.git
-cd DiskLens
+git clone https://github.com/smazumdar261-IN/DiskLENS.git
+cd DiskLENS
 
 # Compile optimized release binary
 cargo build --release

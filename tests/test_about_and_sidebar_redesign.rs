@@ -42,19 +42,19 @@ fn test_metadata_centralization_and_clean_placeholders() {
     // Verify configured GitHub publication URLs
     assert_eq!(
         meta.repository_url,
-        Some("https://github.com/smazumdar261-IN/DiskLens")
+        Some("https://github.com/smazumdar261-IN/DiskLENS")
     );
     assert_eq!(
         meta.documentation_url,
-        Some("https://github.com/smazumdar261-IN/DiskLens#readme")
+        Some("https://github.com/smazumdar261-IN/DiskLENS#readme")
     );
     assert_eq!(
         meta.issues_url,
-        Some("https://github.com/smazumdar261-IN/DiskLens/issues")
+        Some("https://github.com/smazumdar261-IN/DiskLENS/issues")
     );
     assert_eq!(
         meta.license_url,
-        Some("https://github.com/smazumdar261-IN/DiskLens/blob/main/LICENSE")
+        Some("https://github.com/smazumdar261-IN/DiskLENS/blob/main/LICENSE")
     );
     assert_eq!(meta.github_url, Some("https://github.com/smazumdar261-IN"));
     assert!(meta.linkedin_url.is_none());
